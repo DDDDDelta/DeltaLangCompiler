@@ -69,3 +69,7 @@ bool is_literal_token(const Token& tk) {
         TokenType::CharLiteral
     );
 }
+
+std::string BinaryExpr::to_string() const {
+    return "Some Binary Expression";
+}

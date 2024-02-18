@@ -56,3 +56,17 @@ public:
     TypeInfo vartype;
     Expr* defexpr;
 };
+
+template<>
+struct std::formatter<ExprStmt> : std::formatter<std::string> {
+    template <typename FormatContext>
+    auto format(const ExprStmt& stmt, FormatContext& ctx) -> decltype(ctx.out()) {
+        //return std::format_to(ctx.out(), "ExprStmt: {0}", stmt.expr->test_val);
+        std::string expr_content = "bad content";
+        if (auto* bin_expr = dynamic_cast<BinaryExpr*>(stmt.expr)) {
+            expr_content = std::format("BinaryExpr: {}", bin_expr->to_string());
+        }
+        return std::format_to(ctx.out(), "ExprStmt: {}", expr_content);
+    }
+};
+

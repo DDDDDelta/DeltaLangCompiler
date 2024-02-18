@@ -3,19 +3,22 @@
 #include "token.hpp"
 #include "tokentype.hpp"
 #include "utils.hpp"
+#include "typeinfo.hpp"
 
 #include <optional>
 #include <utility>
 #include <any>
+#include <string>
 
 struct Expr {
 public:
-    TypeInfo type = nullptr;
+    TypeInfo type;
 
-    virtual ~Expr() = 0;
+    virtual ~Expr() = default;
+    virtual std::string to_string() const = 0; // for test
 };
 
-inline Expr::~Expr() = default;
+// inline Expr::~Expr() = default;
 
 enum class BinaryOp {
     Plus,
@@ -46,6 +49,8 @@ public:
 
     Expr* lhs;
     Expr* rhs;
+
+    std::string to_string() const override; // for test
 };
 
 enum class UnaryOp {
@@ -65,6 +70,8 @@ public:
 
     UnaryOp op;
     Expr* expr;
+
+    std::string to_string() const override; // for test
 };
 
 struct PrimaryExpr : public Expr {
@@ -77,6 +84,7 @@ inline PrimaryExpr::~PrimaryExpr() = default;
 struct IdExpr : public PrimaryExpr {
 public:
     ~IdExpr() override = default;
+    std::string to_string() const override; // for test
 };
 
 bool is_literal_token(const Token& type);
@@ -87,11 +95,15 @@ public:
 
     TokenType type; // must be one of the literal token types
     std::any data;
+
+    std::string to_string() const override; // for test
 };
 
-struct CastExpr : public PrimiaryExpr {
+struct CastExpr : public PrimaryExpr {
 public:
     ~CastExpr() override { delete expr; }
 
     Expr* expr;
+
+    std::string to_string() const override; // for test
 };
