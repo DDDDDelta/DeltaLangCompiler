@@ -1,0 +1,21 @@
+let val: *u8 const = "hello everyone";
+
+fn main(argc: i32, argv: **u8) -> i32 {
+    let flt32: [3]f32 = { 3.55::f32, 1.::f32, .213::f32 };
+    let flt64: [3]f64 = { 1., .1, 1231.123 };
+
+    loop (let i: i32 = 0; i += 1) i < argc {
+        putstrln(argv[i]);
+    }
+
+    if argc <= 5 {
+        putstrln("hahahahahaha");
+    }
+    else {
+        return 0;
+    }
+    
+    putstr("\\\"hello world\n");
+
+    return 0;
+}
