@@ -9,16 +9,18 @@
 #include <utility>
 #include <any>
 #include <string>
+#include <string_view>
+#include <format>
+#include <charconv>
 
 struct Expr {
 public:
     TypeInfo type;
 
-    virtual ~Expr() = default;
-    virtual std::string to_string() const = 0; // for test
+    virtual ~Expr() = 0;
 };
 
-// inline Expr::~Expr() = default;
+inline Expr::~Expr() = default;
 
 enum class BinaryOp {
     Plus,
@@ -49,8 +51,6 @@ public:
 
     Expr* lhs;
     Expr* rhs;
-
-    std::string to_string() const override; // for test
 };
 
 enum class UnaryOp {
@@ -70,8 +70,6 @@ public:
 
     UnaryOp op;
     Expr* expr;
-
-    std::string to_string() const override; // for test
 };
 
 struct PrimaryExpr : public Expr {
@@ -84,7 +82,6 @@ inline PrimaryExpr::~PrimaryExpr() = default;
 struct IdExpr : public PrimaryExpr {
 public:
     ~IdExpr() override = default;
-    std::string to_string() const override; // for test
 };
 
 bool is_literal_token(const Token& type);
@@ -95,8 +92,6 @@ public:
 
     TokenType type; // must be one of the literal token types
     std::any data;
-
-    std::string to_string() const override; // for test
 };
 
 struct CastExpr : public PrimaryExpr {
@@ -105,5 +100,44 @@ public:
 
     Expr* expr;
 
-    std::string to_string() const override; // for test
+};
+
+template <typename FormatContext>
+std::string format_expr(const Expr& expr, FormatContext& ctx, int indent = 0) {
+    std::string indent_str = std::string(indent*4, ' ');
+    if (auto* literal = dynamic_cast<const LiteralExpr*>(&expr)) {
+        return std::format("{}{}", indent_str, *literal);
+    } else if (auto* id = dynamic_cast<const IdExpr*>(&expr)) {
+        return std::format("{}{}", indent_str, *id);
+    } else if (auto* bin = dynamic_cast<const BinaryExpr*>(&expr)) {
+        return std::format("{0}{1}{2}{3}{0}}}\n", indent_str, *bin, format_expr(*bin->lhs, ctx, indent + 1),
+                           format_expr(*bin->rhs, ctx, indent + 1));
+    }
+    return "unknown_expr";
+}
+
+template<>
+struct std::formatter<BinaryExpr> : std::formatter<std::string> {
+    template <typename FormatContext>
+    auto format(const BinaryExpr& bin_expr, FormatContext& ctx) -> decltype(ctx.out()) {
+        return std::format_to(ctx.out(), "BinaryExpr: some bin op {{\n");
+    }
+};
+
+template<>
+struct std::formatter<LiteralExpr> : std::formatter<std::string> {
+    template <typename FormatContext>
+    auto format(const LiteralExpr& expr, FormatContext& ctx) {
+        std::string data_str = "some literal data";
+        return std::format_to(ctx.out(), "LiteralExpr: {}\n", data_str);
+    }
+};
+
+template<>
+struct std::formatter<IdExpr> : std::formatter<std::string> {
+    template <typename FormatContext>
+    auto format(const IdExpr& expr, FormatContext& ctx) {
+        std::string data_str = "some id";
+        return std::format_to(ctx.out(), "IdExpr: {}\n", data_str);
+    }
 };
