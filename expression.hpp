@@ -112,6 +112,10 @@ std::string format_expr(const Expr& expr, FormatContext& ctx, int indent = 0) {
     } else if (auto* bin = dynamic_cast<const BinaryExpr*>(&expr)) {
         return std::format("{0}{1}{2}{3}{0}}}\n", indent_str, *bin, format_expr(*bin->lhs, ctx, indent + 1),
                            format_expr(*bin->rhs, ctx, indent + 1));
+    } else if (auto* unary = dynamic_cast<const UnaryExpr*>(&expr)) {
+        return std::format("{0}{1}{2}{0}}}\n", indent_str, *unary, format_expr(*unary->expr, ctx, indent + 1));
+    } else if (auto* cast = dynamic_cast<const CastExpr*>(&expr)) {
+        return std::format("{0}{1}{2}{0}}}\n", indent_str, *cast, format_expr(*cast->expr, ctx, indent + 1));
     }
     return "unknown_expr";
 }
@@ -125,6 +129,15 @@ struct std::formatter<BinaryExpr> : std::formatter<std::string> {
 };
 
 template<>
+struct std::formatter<IdExpr> : std::formatter<std::string> {
+    template <typename FormatContext>
+    auto format(const IdExpr& expr, FormatContext& ctx) {
+        std::string data_str = "some id";
+        return std::format_to(ctx.out(), "IdExpr: {}\n", data_str);
+    }
+};
+
+template<>
 struct std::formatter<LiteralExpr> : std::formatter<std::string> {
     template <typename FormatContext>
     auto format(const LiteralExpr& expr, FormatContext& ctx) {
@@ -134,10 +147,40 @@ struct std::formatter<LiteralExpr> : std::formatter<std::string> {
 };
 
 template<>
-struct std::formatter<IdExpr> : std::formatter<std::string> {
+struct std::formatter<CastExpr> : std::formatter<std::string> {
     template <typename FormatContext>
-    auto format(const IdExpr& expr, FormatContext& ctx) {
-        std::string data_str = "some id";
-        return std::format_to(ctx.out(), "IdExpr: {}\n", data_str);
+    auto format(const CastExpr& expr, FormatContext& ctx) {
+        return std::format_to(ctx.out(), "CastExpr: {{\n");
+    }
+};
+
+template<>
+struct std::formatter<UnaryExpr> : std::formatter<std::string> {
+    template <typename FormatContext>
+    auto format(const UnaryExpr& expr, FormatContext& ctx) {
+        std::string op_str;
+        switch (expr.op) {
+            case UnaryOp::Plus:
+                op_str = "Plus '+'";
+                break;
+            case UnaryOp::Minus:
+                op_str = "Minus '-'";
+                break;
+            case UnaryOp::Not:
+                op_str = "Not '!'";
+                break;
+            case UnaryOp::BitwiseNot:
+                op_str = "BitwiseNot '~'";
+                break;
+            case UnaryOp::Deref:
+                op_str = "Deref '*'";
+                break;
+            case UnaryOp::AddressOf:
+                op_str = "AddressOf '&'";
+                break;
+            default:
+                op_str = "Unknown";
+        }
+        return std::format_to(ctx.out(), "UnaryExpr: {}\n", op_str);
     }
 };
