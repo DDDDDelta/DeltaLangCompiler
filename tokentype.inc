@@ -1,9 +1,11 @@
 #ifndef TOK
 #define TOK(X)
 #endif
+
 #ifndef PUNCTUATOR
 #define PUNCTUATOR(X,Y) TOK(X)
 #endif
+
 #ifndef KEYWORD
 #define KEYWORD(X,Y) TOK(X)
 #endif

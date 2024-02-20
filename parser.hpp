@@ -18,6 +18,10 @@ public:
     }
 
 private:
+    TypeInfo type();
+
+    Stmt* statement();
+
     DefStmt* definition_statement();
     FuncDefStmt* function_definition_statement();
     LetDefStmt* variable_definition_statement();
@@ -26,8 +30,9 @@ private:
     CompoundStmt* compound_statement();
     ExprStmt* expression_statement();
 
-    Stmt* statement();
     Expr* expression();
+    LiteralExpr* literal_expression();
+    PrimaryExpr* primary_expression();
 
     std::string_view advance_identifier() {
         std::string_view id = curr_token.get_view();

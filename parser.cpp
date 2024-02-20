@@ -73,8 +73,42 @@ DefStmt* Parser::definition_statement() {
 }
 
 /*
+ * ParameterList
+ *     : '(' (Parameter (',' Parameter)*)? ')'
+ *     ;
+ * 
+ * Parameter
+ *     : Identifier ':' Type
+ *     ;
+ */
+ParenmeterList Parser::parameter_list() {
+    ParameterList list;
+
+    advance_expected(TokenType::LeftParen);
+
+    while (!curr_token.is_one_of(TokenType::RightParen)) {
+        Parenmeter param;
+        param.identifier = advance_identifier();
+        advance_expected(TokenType::Colon);
+        param.type = type();
+        // parenmeter
+
+        list.emplace_back(std::move(param));
+
+        // does not forbid trailing comma
+        if (curr_token.is_one_of(TokenType::Comma)) {
+            advance_expected(TokenType::Comma);
+        }
+    }
+
+    advance_expected(TokenType::RightParen);
+
+    return list;
+}
+
+/*
  * FuncDefStmt
- *     : 'fn' Identifier ParenList ('->' Identifier)? CompoundStmt
+ *     : 'fn' Identifier ParenList '->' Type CompoundStmt
  *     ;
  */
 FuncDefStmt* Parser::function_definition_statement() {
@@ -98,8 +132,8 @@ FuncDefStmt* Parser::function_definition_statement() {
 }
 
 /*
- * FuncDefStmt
- *     : 'let' Identifier (':' Identifier)? CompoundStmt
+ * LetDefStmt
+ *     : 'let' Identifier ':' Type '=' Expr
  *     ;
  */
 LetDefStmt* Parser::variable_definition_statement() {
@@ -115,26 +149,70 @@ LetDefStmt* Parser::variable_definition_statement() {
 
     advance_expected(TokenType::Colon);
     
-    defstmt->vartype = advance_identifier();
+    defstmt->vartype = type();
+
+    advance_expected(TokenType::Equal);
+
+    defstmt->defexpr = expression();
+
+    return defstmt.release();
 }
 
 /*
- * ParameterList
- *     : '(' (Parameter (',' Parameter)*)? ')'
+ * CompoundStmt
+ *     : '{' StmtList '}'
  *     ;
  * 
- * Parameter
- *     : Identifier ':' Identifier
+ * StmtList
+ *     : Stmt*
  *     ;
  */
-ParenmeterList Parser::parameter_list() {
-    ParameterList list;
+CompoundStmt* Parser::compound_statement() {
+    std::unique_ptr<CompoundStmt> compstmt = std::make_unique<CompoundStmt>();
 
-    advance_expected(TokenType::LeftParen);
+    advance_expected(TokenType::LeftBrace);
 
-    // TODO: parse parameters
+    // statement list
+    while (!curr_token.is_one_of(TokenType::RightBrace)) {
+        compstmt->stmts.push_back(statement());
+    }
 
-    return list;
+    advance_expected(TokenType::RightBrace);
+
+    return compstmt.release();
+}
+
+/*
+ * ExprStmt
+ *     : Expr ';'
+ *     ;
+ */
+ExprStmt* Parser::expression_statement() {
+    std::unique_ptr<ExprStmt> exprstmt = std::make_unique<ExprStmt>();
+
+    exprstmt->expr = expression();
+    advance_expected(TokenType::Semicolon);
+
+    return exprstmt;
+}
+
+/*
+ * Type
+ *     : Identifier
+ *     | '*' Type
+ *     ;
+ */
+TypeInfo Parser::type() {
+    if (curr_token.is_one_of(TokenType::Identifier)) {
+        return TypeInfo(advance_identifier());
+    }
+    else if (curr_token.is_one_of(TokenType::Star)) {
+        advance_expected(TokenType::Star);
+        return type().add_pointer();
+    }
+    else { // TODO: unrecognized token in type
+        throw ParseStop(ParseStop::ParserError);
+    }
 }
 
 /*
@@ -160,49 +238,90 @@ Stmt* Parser::statement() {
 }
 
 /*
- * CompoundStmt
- *     : '{' StmtList '}'
- *     ;
- * 
- * StmtList
- *     : Stmt*
- *     ;
- */
-CompoundStmt* Parser::compound_statement() {
-    CompoundStmt* compstmt = new CompoundStmt;
-
-    // statement list
-    while (!curr_token.is_one_of(TokenType::RightBrace)) {
-        compstmt->stmts.push_back(statement());
-    }
-
-    return compstmt;
-}
-
-/*
- * ExprStmt
- *     : Expr ';'
- *     ;
- */
-ExprStmt* Parser::expression_statement() {
-    ExprStmt* exprstmt = new ExprStmt;
-
-    exprstmt->expr = expression();
-    advance_expected(TokenType::Semicolon);
-
-    return exprstmt;
-}
-
-
-/*
  * Expr
- *     : LiteralExpr
+ *     : PrimaryExpr
  *     ;
  */
 Expr* Parser::expression() {
+    if (is_literal_token(curr_token) || curr_token.is_one_of(TokenType::Identifier, TokenType::LeftParen)) {
+        return primary_expression();
+    }
+
+    throw ParseStop(ParseStop::ParserError); // TODO: unrecognized token for expression
+}
+
+/*
+ * LiteralExpr
+ *     : IntLiteralExpr
+ *     | FloatLiteralExpr
+ *     | StringLiteralExpr
+ *     ;
+ */
+LiteralExpr* Parser::literal_expression() {
+    std::unique_ptr<LiteralExpr> litexpr;
+
+    litexpr->type = TypeInfo(curr_token.get_type());
+
+    switch (curr_token.get_type()) {
+    case TokenType::HexIntLiteral:
+    case TokenType::DecIntLiteral:
+        litexpr->reset(new IntLiteralExpr);
+        break;
+    case TokenType::FloatLiteral:
+        litexpr->reset(new FloatLiteralExpr);
+        break;
+    case TokenType::StringLiteral:
+        litexpr->reset(new StringLiteralExpr);
+        break;
+    default:
+        throw ParseStop(ParseStop::ParserError);
+        // asserted to be valid literal token
+    }
+
+    advance(); // consume the literal token
+
+    return litexpr.release();
+}
+
+/*
+ * PrimaryExpr
+ *     : IdExpr
+ *     | ParenExpr
+ *     | LiteralExpr
+ *     ;
+ * 
+ * IdExpr
+ *     : Identifier
+ *     ;
+ * 
+ * ParenExpr
+ *     : '(' Expr ')'
+ *     ;
+ * 
+ */
+PrimaryExpr* Parser::primary_expression() {
     if (is_literal_token(curr_token)) {
         return literal_expression();
     }
+    else if (curr_token.is_one_of(TokenType::Identifier)) {
+        std::unique_ptr<IdExpr> idexpr = std::make_unique<IdExpr>();
+
+        idexpr->identifier = advance_identifier();
+
+        return idexpr.release();
+    }
+    else if (curr_token.is_one_of(TokenType::LeftParen)) {
+        advance_expected(TokenType::LeftParen);
+
+        std::unique_ptr<ParenExpr> expr = std::make_unique<ParenExpr>();
+        expr->expr = expression();
+
+        advance_expected(TokenType::RightParen);
+
+        return expr.release();
+    }
+
+    throw ParseStop(ParseStop::ParserError); // TODO: unrecognized token for primary expression
 }
 
 void Parser::advance_expected(TokenType type) {

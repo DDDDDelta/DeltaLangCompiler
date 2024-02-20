@@ -19,4 +19,3 @@ inline bool instanceof(auto&& obj) requires
     std::is_polymorphic_v<std::decay_t<decltype(obj)>> {
     return dynamic_cast<const To*>(&obj) != nullptr;
 }
-
