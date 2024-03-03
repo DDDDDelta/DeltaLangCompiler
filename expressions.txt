@@ -1,0 +1,81 @@
+PrimaryExpression:
+    IdExpression
+    LiteralExpression
+    ParenExpression
+
+PostfixExpression:
+    PrimaryExpression
+    PostFixExpression '[' Expression ']'
+    PostFixExpression '(' ExpressionList ')'   (CallExpression)
+    LiteralExpression '::' Typename
+
+UnaryExpression:
+    PostfixExpression
+    '+' UnaryExpression
+    '-' UnaryExpression
+    UnaryOperator CastExpression
+
+UnaryOperator: one of
+    '&' '*' '+' '-' '~' '!'
+
+CastExpression:
+    UnaryExpression
+    CastExpression '::' Typename
+
+MultiplicativeExpression:
+    CastExprssion
+    MultiplicativeExpression '*' CastExpression
+    MultiplicativeExpression '/' CastExpression
+    MultiplicativeExpression '%' CastExpression
+
+AdditiveExpression:
+    MultiplicativeExpression
+    AdditiveExpression '+' MultiplicativeExpression
+    AdditiveExpression '-' MultiplicativeExpression
+
+ShiftExpression:
+    AdditiveExpression
+    ShiftExpression '>>' AdditiveExpression
+    ShiftExpression '<<' AdditiveExpression
+
+RelationalExpression:
+    ShiftExpression
+    RelationalExpression RelationalOperator ShiftExpression
+
+RelationalOperator: one of
+    '<' '>' '<=' '>='
+
+EqualityExpression:
+    RelationalExpression
+    EqualityExpression '==' RelationalExpression
+    EqualityExpression '!=' RelationalExpression
+
+BitwiseAndExpression:
+    EqualityExpression
+    BitwiseAndExpression '&' EqualityExpression
+
+BitwiseXorExpression:
+    BitwiseAndExpression
+    BitwiseXorExpression '^' BitwiseAndExpression    
+    
+BitwiseOrExpression:
+    BitwiseXorExpression
+    BitwiseOrExpression '|' BitwiseXorExpression
+
+LogicalAndExpression:
+    LogicalAndExpression
+    BitwiseOrExpression '&&' LogicalAndExpression
+
+LogicalOrExpression:
+    LogicalOrExpression
+    LogicalAndExpression '||' LogicalOrExpression
+
+AssignmentExpression:
+    LogicalOrExpression
+    UnaryExpression AssignmentOperator AssignmentExpression
+
+AssignmentOperator: one of
+    =  *=  /=  %=  +=  -=  <<=  >>=  &=  ^=  |=
+
+Expression:
+    AssignmentExpression
