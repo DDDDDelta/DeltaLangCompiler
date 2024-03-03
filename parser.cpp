@@ -216,6 +216,24 @@ TypeInfo Parser::type() {
 }
 
 /*
+ * ReturnStmt
+ *     : 'return' Expr? ';'
+ */
+ReturnStmt* Parser::return_statement() {
+    std::unique_ptr<ReturnStmt> retstmt = std::make_unique<ReturnStmt>();
+
+    advance_expected(TokenType::Return);
+
+    if (!curr_token.is_one_of(TokenType::Semicolon)) {
+        retstmt->expr = expression();
+    }
+
+    advance_expected(TokenType::Semicolon);
+
+    return retstmt.release();
+}
+
+/*
  * Stmt
  *     : CompoundStmt
  *     | LetDefStmt
@@ -232,6 +250,8 @@ Stmt* Parser::statement() {
         return variable_definition_statement();
     case Fn:
         return function_definition_statement();
+    case Return:
+        return return_statement();
     default:
         return expression_statement();
     }

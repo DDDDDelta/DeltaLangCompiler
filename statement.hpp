@@ -56,3 +56,10 @@ public:
     TypeInfo vartype;
     Expr* defexpr;
 };
+
+struct ReturnStmt : public Stmt {
+public:
+    ~ReturnStmt() override { delete expr; }
+
+    Expr* retexpr;
+};

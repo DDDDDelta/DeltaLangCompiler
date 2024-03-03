@@ -3,8 +3,9 @@
 #include <cassert>
 #include <concepts>
 #include <type_traits>
+#include <utility>
 
-#define UNREACHABLE(MSG) (assert(false && MSG && "unreachable"), __builtin_unreachable())
+#define DELTA_UNREACHABLE(MSG) (assert(false && MSG && "unreachable"), std::unreachable())
 
 template <typename To>
 inline bool instanceof(auto* ptr) requires

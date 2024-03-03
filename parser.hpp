@@ -29,6 +29,7 @@ private:
     
     CompoundStmt* compound_statement();
     ExprStmt* expression_statement();
+    ReturnStmt* return_statement();
 
     Expr* expression();
     LiteralExpr* literal_expression();

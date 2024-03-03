@@ -2,6 +2,7 @@
 
 #include "token.hpp"
 #include "tokentype.hpp"
+#include "typeinfo.hpp"
 #include "utils.hpp"
 
 #include <concept>
@@ -52,6 +53,7 @@ public:
     ~BinaryExpr() override { delete lhs; delete rhs; };
 
     Expr* lhs;
+    BinaryOp op;
     Expr* rhs;
 };
 
