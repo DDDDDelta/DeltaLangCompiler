@@ -4,6 +4,8 @@
 #include <concepts>
 #include <type_traits>
 #include <utility>
+#include <vector>
+#include <memory>
 
 #define DELTA_UNREACHABLE(MSG) (assert(false && MSG && "unreachable"), std::unreachable())
 

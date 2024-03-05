@@ -57,6 +57,12 @@ public:
     Expr* defexpr;
 };
 
+struct ReturnStmt : public Stmt {
+public:
+    ~ReturnStmt() override { delete retexpr; }
+    Expr* retexpr;
+};
+
 template <typename FormatContext>
 std::string format_stmt(const Stmt& stmt, FormatContext& ctx, int indent = 0) {
     std::string indent_str = std::string(indent*4, ' ');

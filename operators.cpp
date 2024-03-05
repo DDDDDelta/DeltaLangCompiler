@@ -60,12 +60,37 @@ std::optional<UnaryOp> to_unary_operator(TokenType type) {
     return std::nullopt;   
 }
 
-bool is_literal_token(const Token& tk) {
-    return tk.is_one_of(
-        TokenType::HexIntLiteral, 
-        TokenType::DecIntLiteral, 
-        TokenType::FloatLiteral, 
-        TokenType::StringLiteral, 
-        TokenType::CharLiteral
-    );
+BinopPrecedence get_precedence(BinaryOp op) {
+    switch (op) {
+    case BinaryOp::Or:
+        return BinopPrecedence::Or;
+    case BinaryOp::And:
+        return BinopPrecedence::And;
+    case BinaryOp::BitwiseOr:
+        return BinopPrecedence::BitwiseOr;
+    case BinaryOp::BitwiseXor:
+        return BinopPrecedence::BitwiseXor;
+    case BinaryOp::BitwiseAnd:
+        return BinopPrecedence::BitwiseAnd;
+    case BinaryOp::Equal:
+    case BinaryOp::NotEqual:
+        return BinopPrecedence::Equality;
+    case BinaryOp::Less:
+    case BinaryOp::Greater:
+    case BinaryOp::LessEqual:
+    case BinaryOp::GreaterEqual:
+        return BinopPrecedence::Relational;
+    case BinaryOp::LeftShift:
+    case BinaryOp::RightShift:
+        return BinopPrecedence::Shift;
+    case BinaryOp::Plus:
+    case BinaryOp::Minus:
+        return BinopPrecedence::Add;
+    case BinaryOp::Multiply:
+    case BinaryOp::Divide:
+    case BinaryOp::Modulo:
+        return BinopPrecedence::Multiply;
+    default:
+        UNREACHABLE("logically unreachable");
+    }
 }

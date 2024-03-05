@@ -31,9 +31,14 @@ private:
     ExprStmt* expression_statement();
     ReturnStmt* return_statement();
 
+    ExprList expression_list(TokenType start_token, TokenType end_token);
     Expr* expression();
-    LiteralExpr* literal_expression();
-    PrimaryExpr* primary_expression();
+    Expr* literal_expression();
+    Expr* primary_expression();
+    Expr* postfix_expression();
+    Expr* unary_expression();
+    Expr* cast_expression();
+    Expr* rhs_of_binary_expression(Expr* lhs);
 
     std::string_view advance_identifier() {
         std::string_view id = curr_token.get_view();
@@ -43,7 +48,8 @@ private:
 
     // TypeInfo type_info();
     void advance_expected(TokenType type);
-    bool advance() noexcept;
+    void advance();
+    bool advance_noexc() noexcept;
     
     void handel_lex_stop();
 

@@ -239,6 +239,7 @@ ReturnStmt* Parser::return_statement() {
  *     | LetDefStmt
  *     | FuncDefStmt
  *     | ExprStmt
+ *     | ReturnStmt
  *     ;
  */
 Stmt* Parser::statement() {
@@ -257,17 +258,41 @@ Stmt* Parser::statement() {
     }
 }
 
+ExprList Parser::expression_list(TokenType start_token, TokenType end_token) {
+    ExprList list;
+
+    advance_expected(start_token);
+
+    while (curr_token.is_one_of(end_token)) {
+        try {
+            list.push_back(expression()); // expression() may throw and push_back is noexcept
+        } catch (...) {
+            for (auto* expr : list) {
+                delete expr;
+            }
+            throw;
+        }
+
+        if (curr_token.is_one_of(TokenType::Comma)) {
+            advance();
+        }
+        else {
+            break;
+        }
+    }
+
+    advance_expected(end_token);
+
+    return list;
+}
+
 /*
  * Expr
- *     : PrimaryExpr
+ *     : PostfixExpr
  *     ;
  */
 Expr* Parser::expression() {
-    if (is_literal_token(curr_token) || curr_token.is_one_of(TokenType::Identifier, TokenType::LeftParen)) {
-        return primary_expression();
-    }
-
-    throw ParseStop(ParseStop::ParserError); // TODO: unrecognized token for expression
+    return PostfixExpr();
 }
 
 /*
@@ -277,20 +302,21 @@ Expr* Parser::expression() {
  *     | StringLiteralExpr
  *     ;
  */
-LiteralExpr* Parser::literal_expression() {
+Expr* Parser::literal_expression() {
     std::unique_ptr<LiteralExpr> litexpr;
 
     litexpr->type = TypeInfo(curr_token.get_type());
 
     switch (curr_token.get_type()) {
-    case TokenType::HexIntLiteral:
-    case TokenType::DecIntLiteral:
+        using enum TokenType;
+    case HexIntLiteral:
+    case DecIntLiteral:
         litexpr->reset(new IntLiteralExpr);
         break;
-    case TokenType::FloatLiteral:
+    case FloatLiteral:
         litexpr->reset(new FloatLiteralExpr);
         break;
-    case TokenType::StringLiteral:
+    case StringLiteral:
         litexpr->reset(new StringLiteralExpr);
         break;
     default:
@@ -319,7 +345,7 @@ LiteralExpr* Parser::literal_expression() {
  *     ;
  * 
  */
-PrimaryExpr* Parser::primary_expression() {
+Expr* Parser::primary_expression() {
     if (is_literal_token(curr_token)) {
         return literal_expression();
     }
@@ -335,6 +361,7 @@ PrimaryExpr* Parser::primary_expression() {
 
         std::unique_ptr<ParenExpr> expr = std::make_unique<ParenExpr>();
         expr->expr = expression();
+        expr->type = expr->expr->type;
 
         advance_expected(TokenType::RightParen);
 
@@ -344,9 +371,108 @@ PrimaryExpr* Parser::primary_expression() {
     throw ParseStop(ParseStop::ParserError); // TODO: unrecognized token for primary expression
 }
 
+/* PostfixExpression:
+ *     : PrimaryExpression
+ *     | PostFixExpression '(' ExpressionList ')'   (CallExpression)
+ *     | PostFixExpression '[' Expression ']'       (IndexExpression) // TODO: implement this
+ *     | LiteralExpression '::' Typename
+ *     ;
+ */
+Expr* Parser::postfix_expression() {
+    std::unique_ptr<Expr> primexpr(primary_expression());
+
+    // LiteralExpression '::' Typename
+    // literal type specifier
+    if (isinstance<LiteralExpr>(primexpr.get())) {
+        if (curr_token.is_one_of(TokenType::ColonColon)) {
+            advance();
+
+            TypeInfo cast_to = type();
+            // TODO: check if cast_to is valid type for literal
+            primexpr->type = std::move(cast_to);
+        }
+    }
+
+    // CallExpression or IndexExpression
+    while (true) {
+        if (curr_token.is_one_of(TokenType::LeftParen)) {
+            std::unique_ptr<CallExpr> callexpr = std::make_unique<CallExpr>();
+            callexpr->args = expression_list(TokenType::LeftParen, TokenType::RightParen);
+
+            callexpr->mainexpr = primeexpr.release(); // noexcept
+            primexpr.reset(callexpr.release()); // noexcept
+        } else {
+            break;
+        }
+        // TODO: index expression
+    }
+    /* cannot have mutable explicit this
+    [&primeexpr, parser = this](this auto&& self) mutable -> void {
+        if (curr_token.is_one_of(TokenType::LeftParen)) {
+            std::unique_ptr<CallExpr> callexpr = std::make_unique<CallExpr>();
+            callexpr->args = parser->expression_list(TokenType::LeftParen, TokenType::RightParen);
+
+            callexpr->mainexpr = primeexpr.release(); // noexcept
+            primexpr.reset(callexpr.release()); // noexcept
+
+            self();
+        }
+        // TODO: index expression
+    } ();
+    */
+
+    return primeexpr.release();
+}
+
+/*
+ * UnaryExpression
+ *     : PostfixExpression
+ *     | UnaryOperator CastExpression
+ *     ;
+ */
+Expr* Parser::unary_expression() {
+    if (is_unary_operator(curr_token)) {
+        std::unique_ptr<UnaryExpr> unaryexpr = std::make_unique<UnaryExpr>();
+
+        unaryexpr->op = to_unary_operator(curr_token);
+        advance();
+
+        unaryexpr->mainexpr = unary_expression();
+
+        return unaryexpr.release();
+    }
+    else {
+        return postfix_expression();
+    }
+}
+
+/*
+ * CastExpression
+ *     : UnaryExpression
+ *     | CastExpression '::' Typename
+ *     ;
+ */
+Expr* Parser::cast_expression() {
+    std::unique_ptr<Expr> unaryexpr(unary_expression());
+
+    while (curr_token.is_one_of(TokenType::ColonColon)) {
+        advance();
+
+        std::unique_ptr<CastExpr> castexpr = std::make_unique<CastExpr>();
+        castexpr->expr = unaryexpr.release(); // noexcept
+        castexpr->type = type();
+
+        unaryexpr.reset(castexpr.release()); // noexcept
+    }
+
+    return unaryexpr.release();
+}
+
+
+
 void Parser::advance_expected(TokenType type) {
     if (curr_token.is_one_of(type)) {
-        if (!advance()) {
+        if (!advance_noexc()) {
             handel_lex_stop();
         }
     }
@@ -355,9 +481,15 @@ void Parser::advance_expected(TokenType type) {
     throw ParseStop(ParseStop::ParserError);
 }
 
-bool Parser::advance() noexcept {
+bool Parser::advance_noexc() noexcept {
     curr_token = std::move(next_token);
     return lexer.lex(next_token);
+}
+
+void Parser::advance() {
+    if (!advance_noexc()) {
+        handel_lex_stop();
+    }
 }
 
 void Parser::handel_lex_stop() {

@@ -27,6 +27,21 @@ enum class BinaryOp {
     BitwiseXor,
 };
 
+enum class BinopPrecedence {
+    Or,
+    And,
+    BitwiseOr,
+    BitwiseXor,
+    BitwiseAnd,
+    Equality,
+    Relational,
+    Shift,
+    Add,
+    Multiply,
+};
+
+BinopPrecedence get_precedence(BinaryOp op);
+
 enum class UnaryOp {
     Plus,
     Minus,

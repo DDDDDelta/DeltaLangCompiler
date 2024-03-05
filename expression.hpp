@@ -5,6 +5,7 @@
 #include "typeinfo.hpp"
 #include "utils.hpp"
 #include "typeinfo.hpp"
+#include "operators.hpp"
 
 #include <concept>
 #include <stdfloat>
@@ -27,63 +28,59 @@ public:
 
 inline Expr::~Expr() = default;
 
-enum class BinaryOp {
-    Plus,
-    Minus,
-    Multiply,
-    Divide,
-    Modulo,
-    And,
-    Or,
-    Equal,
-    NotEqual,
-    Less,
-    Greater,
-    LessEqual,
-    GreaterEqual,
-    LeftShift,
-    RightShift,
-    BitwiseAnd,
-    BitwiseOr,
-    BitwiseXor,
-};
-
-std::optional<BinaryOp> to_binary_operator(TokenType type);
-
-bool is_binary_operator(const Token& tk) {
-    return to_binary_operator(tk.type).has_value();
-}
 
 struct BinaryExpr : public Expr {
 public:
     ~BinaryExpr() override { delete lhs; delete rhs; };
 
-    Expr* lhs;
+    Expr* lhs  = nullptr;
     BinaryOp op;
-    Expr* rhs;
+    Expr* rhs  = nullptr;
 };
-
-enum class UnaryOp {
-    Plus,
-    Minus,
-    Not,
-    BitwiseNot,
-    Deref,
-    AddressOf,
-};
-
-std::optional<UnaryOp> to_unary_operator(TokenType type);
-
-bool is_unary_operator(const Token& tk) {
-    return to_unary_operator(tk.type).has_value();
-}
 
 struct UnaryExpr : public Expr {
 public:
-    ~UnaryExpr() override { delete expr; };
+    ~UnaryExpr() override { delete mainexpr; };
 
     UnaryOp op;
-    Expr* expr;
+    Expr* mainexpr = nullptr;
+};
+
+using ExprList = std::vector<Expr*>;
+
+struct PostfixExpr : public Expr {
+public:
+    ~PostfixExpr() override = 0;
+
+    Expr* mainexpr = nullptr;
+    PostfixOp op;
+};
+
+inline PostfixExpr::~PostfixExpr() = default;
+
+struct CallExpr : public PostfixExpr {
+public:
+    ~CallExpr() override {
+        for (auto* arg : args) {
+            delete arg;
+        }
+    }
+
+    ExprList args;
+};
+
+struct IndexExpr : public PostfixExpr {
+public:
+    ~IndexExpr() override { delete index; }
+
+    Expr* index = nullptr;
+};
+
+struct CastExpr : public Expr {
+public:
+    ~CastExpr() override { delete expr; }
+
+    Expr* expr = nullptr;
 };
 
 struct PrimaryExpr : public Expr {
@@ -98,7 +95,15 @@ public:
     ~IdExpr() override = default;
 };
 
-bool is_literal_token(const Token& type);
+inline bool is_literal_token(const Token& tk) {
+    return tk.is_one_of(
+        TokenType::HexIntLiteral, 
+        TokenType::DecIntLiteral, 
+        TokenType::FloatLiteral, 
+        TokenType::StringLiteral, 
+        TokenType::CharLiteral,
+    );
+}
 
 struct LiteralExpr : public PrimaryExpr {
 public:
@@ -145,15 +150,7 @@ struct ParenExpr : public PrimaryExpr {
 public:
     ~ParenExpr() override { delete expr; }
 
-    Expr* expr;
-};
-
-struct CastExpr : public PrimaryExpr {
-public:
-    ~CastExpr() override { delete expr; }
-
-    Expr* expr;
-
+    Expr* expr = nullptr;
 };
 
 template <typename FormatContext>
