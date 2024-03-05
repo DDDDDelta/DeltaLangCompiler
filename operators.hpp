@@ -28,6 +28,7 @@ enum class BinaryOp {
 };
 
 enum class BinopPrecedence {
+    Unknown,
     Or,
     And,
     BitwiseOr,
