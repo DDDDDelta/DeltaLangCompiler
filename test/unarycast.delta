@@ -1,0 +1,7 @@
+let val: *u8 const = "hello everyone";
+
+fn main() {
+    let i: i16 = -15::i16;
+
+    return 0;
+}
