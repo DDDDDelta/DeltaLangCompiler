@@ -10,10 +10,6 @@
 
 class Token {
 public:
-    Token() = default;
-    Token(const Token&) = default;
-    Token(Token&&) = default;
-
     bool is_one_of(TokenType type1) const { return type == type1; }
     template <typename... Ts>
     bool is_one_of(TokenType type, Ts... types) const {

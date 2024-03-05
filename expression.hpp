@@ -7,7 +7,7 @@
 #include "typeinfo.hpp"
 #include "operators.hpp"
 
-#include <concept>
+#include <concepts>
 #include <stdfloat>
 #include <cstdint>
 #include <cstddef>
@@ -93,6 +93,8 @@ inline PrimaryExpr::~PrimaryExpr() = default;
 struct IdExpr : public PrimaryExpr {
 public:
     ~IdExpr() override = default;
+
+    std::string identifier;
 };
 
 inline bool is_literal_token(const Token& tk) {
@@ -101,7 +103,7 @@ inline bool is_literal_token(const Token& tk) {
         TokenType::DecIntLiteral, 
         TokenType::FloatLiteral, 
         TokenType::StringLiteral, 
-        TokenType::CharLiteral,
+        TokenType::CharLiteral
     );
 }
 
@@ -137,7 +139,7 @@ public:
     ~FloatLiteralExpr() override = default;
 
     double data = 0.0;
-}
+};
 
 struct StringLiteralExpr : public LiteralExpr {
 public:

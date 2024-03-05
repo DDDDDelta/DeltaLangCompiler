@@ -48,7 +48,7 @@ struct FuncDefStmt : public DefStmt {
 public:
     ParameterList params;
     TypeInfo rettype;
-    CompoundStmt funcbody;
+    CompoundStmt* funcbody;
 };
 
 struct LetDefStmt : public DefStmt {
@@ -59,8 +59,8 @@ public:
 
 struct ReturnStmt : public Stmt {
 public:
-    ~ReturnStmt() override { delete retexpr; }
-    Expr* retexpr;
+    ~ReturnStmt() override { delete expr; }
+    Expr* expr;
 };
 
 template <typename FormatContext>

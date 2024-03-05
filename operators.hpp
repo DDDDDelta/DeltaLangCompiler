@@ -1,5 +1,8 @@
 #pragma once
 
+#include "token.hpp"
+#include "tokentype.hpp"
+
 enum class PostfixOp {
     Call,
     Index,
@@ -55,11 +58,11 @@ enum class UnaryOp {
 std::optional<BinaryOp> to_binary_operator(TokenType type);
 
 inline bool is_binary_operator(const Token& tk) {
-    return to_binary_operator(tk.type).has_value();
+    return to_binary_operator(tk.get_type()).has_value();
 }
 
 std::optional<UnaryOp> to_unary_operator(TokenType type);
 
 inline bool is_unary_operator(const Token& tk) {
-    return to_unary_operator(tk.type).has_value();
+    return to_unary_operator(tk.get_type()).has_value();
 }

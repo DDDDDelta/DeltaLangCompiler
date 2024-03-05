@@ -18,7 +18,7 @@ private:
     StopType type;
 };
 
-explicit Parser::Parser(const SourceBuffer& src) : lexer(src) {
+Parser::Parser(const SourceBuffer& src) : lexer(src) {
     lexer.lex(curr_token); // must at least have an EOF token
     bool hastwo = lexer.lex(next_token);
     
@@ -81,7 +81,7 @@ DefStmt* Parser::definition_statement() {
  *     : Identifier ':' Type
  *     ;
  */
-ParenmeterList Parser::parameter_list() {
+ParameterList Parser::parameter_list() {
     ParameterList list;
 
     advance_expected(TokenType::LeftParen);
@@ -121,11 +121,11 @@ FuncDefStmt* Parser::function_definition_statement() {
     }
 
     defstmt->identifier = advance_identifier();
-    defstmt->paren_list = parameter_list();
+    defstmt->params = parameter_list();
     
     advance_expected(TokenType::MinusGreater);
 
-    defstmt->rettype = advance_identifier();
+    defstmt->rettype = (TypeInfo)(std::string)advance_identifier();
     defstmt->funcbody = compound_statement();
 
     return defstmt.release();
@@ -193,7 +193,7 @@ ExprStmt* Parser::expression_statement() {
     exprstmt->expr = expression();
     advance_expected(TokenType::Semicolon);
 
-    return exprstmt;
+    return exprstmt.release();
 }
 
 /*
@@ -204,7 +204,7 @@ ExprStmt* Parser::expression_statement() {
  */
 TypeInfo Parser::type() {
     if (curr_token.is_one_of(TokenType::Identifier)) {
-        return TypeInfo(advance_identifier());
+        return TypeInfo((std::string)advance_identifier());
     }
     else if (curr_token.is_one_of(TokenType::Star)) {
         advance_expected(TokenType::Star);
@@ -292,7 +292,7 @@ ExprList Parser::expression_list(TokenType start_token, TokenType end_token) {
  *     ;
  */
 Expr* Parser::expression() {
-    return PostfixExpr();
+    return postfix_expression();
 }
 
 /*
@@ -311,13 +311,13 @@ Expr* Parser::literal_expression() {
         using enum TokenType;
     case HexIntLiteral:
     case DecIntLiteral:
-        litexpr->reset(new IntLiteralExpr);
+        litexpr.reset(new IntLiteralExpr);
         break;
     case FloatLiteral:
-        litexpr->reset(new FloatLiteralExpr);
+        litexpr.reset(new FloatLiteralExpr);
         break;
     case StringLiteral:
-        litexpr->reset(new StringLiteralExpr);
+        litexpr.reset(new StringLiteralExpr);
         break;
     default:
         throw ParseStop(ParseStop::ParserError);
@@ -399,7 +399,7 @@ Expr* Parser::postfix_expression() {
             std::unique_ptr<CallExpr> callexpr = std::make_unique<CallExpr>();
             callexpr->args = expression_list(TokenType::LeftParen, TokenType::RightParen);
 
-            callexpr->mainexpr = primeexpr.release(); // noexcept
+            callexpr->mainexpr = primexpr.release(); // noexcept
             primexpr.reset(callexpr.release()); // noexcept
         } else {
             break;
@@ -407,12 +407,12 @@ Expr* Parser::postfix_expression() {
         // TODO: index expression
     }
     /* cannot have mutable explicit this
-    [&primeexpr, parser = this](this auto&& self) mutable -> void {
+    [&primexpr, parser = this](this auto&& self) mutable -> void {
         if (curr_token.is_one_of(TokenType::LeftParen)) {
             std::unique_ptr<CallExpr> callexpr = std::make_unique<CallExpr>();
             callexpr->args = parser->expression_list(TokenType::LeftParen, TokenType::RightParen);
 
-            callexpr->mainexpr = primeexpr.release(); // noexcept
+            callexpr->mainexpr = primexpr.release(); // noexcept
             primexpr.reset(callexpr.release()); // noexcept
 
             self();
@@ -421,7 +421,7 @@ Expr* Parser::postfix_expression() {
     } ();
     */
 
-    return primeexpr.release();
+    return primexpr.release();
 }
 
 /*
@@ -434,7 +434,7 @@ Expr* Parser::unary_expression() {
     if (is_unary_operator(curr_token)) {
         std::unique_ptr<UnaryExpr> unaryexpr = std::make_unique<UnaryExpr>();
 
-        unaryexpr->op = to_unary_operator(curr_token);
+        unaryexpr->op = *to_unary_operator(curr_token.get_type());
         advance();
 
         unaryexpr->mainexpr = unary_expression();

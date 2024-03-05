@@ -1,3 +1,5 @@
 .vscode/
 testmain.cpp
 .idea/
+*.o
+test/test.exe

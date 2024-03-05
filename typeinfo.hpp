@@ -9,31 +9,32 @@ class TypeManager {
 
 class TypeInfo {
 public:
-    explicit TypeInfo(std::string typename) : name(std::move(typename)) {}
+    TypeInfo() = default;
+    explicit TypeInfo(std::string type_name) : type_name(std::move(type_name)) {}
     explicit TypeInfo(TokenType tktype) {
         switch (tktype) {
         case TokenType::HexIntLiteral:
         case TokenType::DecIntLiteral:
-            name = "i32";
+            type_name = "i32";
             break;
         case TokenType::CharLiteral:
-            name = "u8";
+            type_name = "u8";
             break;
         case TokenType::FloatLiteral:
-            name = "f64";
+            type_name = "f64";
             break;
         case TokenType::StringLiteral:
-            name = "u8";
+            type_name = "u8";
             add_pointer();
             break;
         default:
             DELTA_UNREACHABLE("asserted to be valid type token");
         }
     }
-    virtual ~TypeInfo() = 0;
+    virtual ~TypeInfo() = default;
     
-    std::string name() const { return name; }
-    int pointer_count() const { return pointer_count; }
+    std::string name() const { return type_name; }
+    int pointer_count() const { return pointer_c; }
 
     TypeInfo& add_pointer(int count = 1) {
         pointer_c += count;
@@ -41,6 +42,6 @@ public:
     }
 
 private:
-    std::string name;
+    std::string type_name;
     int pointer_c = 0;
 };

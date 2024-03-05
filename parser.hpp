@@ -5,6 +5,7 @@
 #include "filebuffer.hpp"
 #include "token.hpp"
 #include "lexer.hpp"
+#include "utils.hpp"
 
 #include <memory>
 
@@ -25,7 +26,7 @@ private:
     DefStmt* definition_statement();
     FuncDefStmt* function_definition_statement();
     LetDefStmt* variable_definition_statement();
-    ParenmeterList parameter_list();
+    ParameterList parameter_list();
     
     CompoundStmt* compound_statement();
     ExprStmt* expression_statement();
@@ -38,7 +39,7 @@ private:
     Expr* postfix_expression();
     Expr* unary_expression();
     Expr* cast_expression();
-    Expr* rhs_of_binary_expression(Expr* lhs);
+    // Expr* rhs_of_binary_expression(Expr* lhs);
 
     std::string_view advance_identifier() {
         std::string_view id = curr_token.get_view();

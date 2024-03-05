@@ -91,6 +91,6 @@ BinopPrecedence get_precedence(BinaryOp op) {
     case BinaryOp::Modulo:
         return BinopPrecedence::Multiply;
     default:
-        UNREACHABLE("logically unreachable");
+        DELTA_UNREACHABLE("logically unreachable");
     }
 }

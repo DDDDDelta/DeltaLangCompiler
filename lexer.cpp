@@ -73,7 +73,7 @@ bool Lexer::lex_hex(Token& result, const char* curr_ptr) {
         }
     }
 
-    UNREACHABLE("physically unreachable");
+    DELTA_UNREACHABLE("physically unreachable");
 }
 
 
