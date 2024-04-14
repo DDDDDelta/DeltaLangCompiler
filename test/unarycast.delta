@@ -1,6 +1,6 @@
-let val: *u8 const = "hello everyone";
+let val: *u8 = "hello everyone";
 
-fn main() {
+fn main() -> i32 {
     let i: i16 = -15::i16;
 
     return 0;

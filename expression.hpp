@@ -8,7 +8,6 @@
 #include "operators.hpp"
 
 #include <concepts>
-#include <stdfloat>
 #include <cstdint>
 #include <cstddef>
 #include <optional>

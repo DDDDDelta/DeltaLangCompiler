@@ -37,6 +37,7 @@ bool Parser::parse() {
     assert(!curr_token.is_one_of(TokenType::ERROR));
 
     if (curr_token.is_one_of(TokenType::EndOfFile)) {
+        std::cout << "empty file" << std::endl;
         return false;
     }
 
@@ -47,6 +48,20 @@ bool Parser::parse() {
 
         stmt.reset(new_stmt); // noexcept here
     } catch (const ParseStop& e) {
+        std::cout << &e << std::endl;
+        if (e.get_type() == ParseStop::EndOfFile) {
+            std::cout << "early eof" << std::endl;
+        }
+        else if (e.get_type() == ParseStop::LexerError) {
+            std::cout << "lexer error" << std::endl;
+        }
+        else if (e.get_type() == ParseStop::ParserError) {
+            std::cout << "parser error" << std::endl;
+        }
+        else {
+            std::cout << "unknown error" << std::endl;
+        }
+
         delete new_stmt; // just to make sure
 
         return false;
@@ -220,6 +235,7 @@ TypeInfo Parser::type() {
  *     : 'return' Expr? ';'
  */
 ReturnStmt* Parser::return_statement() {
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     std::unique_ptr<ReturnStmt> retstmt = std::make_unique<ReturnStmt>();
 
     advance_expected(TokenType::Return);
@@ -243,6 +259,7 @@ ReturnStmt* Parser::return_statement() {
  *     ;
  */
 Stmt* Parser::statement() {
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     switch (curr_token.get_type()) {
         using enum TokenType;
     case LeftBrace:
@@ -259,6 +276,7 @@ Stmt* Parser::statement() {
 }
 
 ExprList Parser::expression_list(TokenType start_token, TokenType end_token) {
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     ExprList list;
 
     advance_expected(start_token);
@@ -292,7 +310,8 @@ ExprList Parser::expression_list(TokenType start_token, TokenType end_token) {
  *     ;
  */
 Expr* Parser::expression() {
-    return postfix_expression();
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
+    return cast_expression();
 }
 
 /*
@@ -303,9 +322,8 @@ Expr* Parser::expression() {
  *     ;
  */
 Expr* Parser::literal_expression() {
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     std::unique_ptr<LiteralExpr> litexpr;
-
-    litexpr->type = TypeInfo(curr_token.get_type());
 
     switch (curr_token.get_type()) {
         using enum TokenType;
@@ -323,6 +341,8 @@ Expr* Parser::literal_expression() {
         throw ParseStop(ParseStop::ParserError);
         // asserted to be valid literal token
     }
+    
+    litexpr->type = TypeInfo(curr_token.get_type());
 
     advance(); // consume the literal token
 
@@ -346,6 +366,7 @@ Expr* Parser::literal_expression() {
  * 
  */
 Expr* Parser::primary_expression() {
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     if (is_literal_token(curr_token)) {
         return literal_expression();
     }
@@ -379,6 +400,7 @@ Expr* Parser::primary_expression() {
  *     ;
  */
 Expr* Parser::postfix_expression() {
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     std::unique_ptr<Expr> primexpr(primary_expression());
 
     // LiteralExpression '::' Typename
@@ -431,6 +453,7 @@ Expr* Parser::postfix_expression() {
  *     ;
  */
 Expr* Parser::unary_expression() {
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     if (is_unary_operator(curr_token)) {
         std::unique_ptr<UnaryExpr> unaryexpr = std::make_unique<UnaryExpr>();
 
@@ -453,6 +476,7 @@ Expr* Parser::unary_expression() {
  *     ;
  */
 Expr* Parser::cast_expression() {
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     std::unique_ptr<Expr> unaryexpr(unary_expression());
 
     while (curr_token.is_one_of(TokenType::ColonColon)) {
@@ -475,14 +499,18 @@ void Parser::advance_expected(TokenType type) {
         if (!advance_noexc()) {
             handel_lex_stop();
         }
+        return;
     }
 
     // TODO: diag expects token type
+    std::cout << "unexpected token type" << std::endl;
+    std::cout << "expected: " << token_type_name(type) << std::endl;
     throw ParseStop(ParseStop::ParserError);
 }
 
 bool Parser::advance_noexc() noexcept {
     curr_token = std::move(next_token);
+    std::cout << "curr_token: " << curr_token << std::endl;
     return lexer.lex(next_token);
 }
 
