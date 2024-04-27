@@ -19,10 +19,6 @@ public:
     bool is_eof() const {
         return buffer_curr == buffer_end;
     }
-
-    std::string_view get_diag() const {
-        return diag;
-    }
     
 private:
     static const KeywordTrie kwtrie;
@@ -36,7 +32,6 @@ private:
     bool lex_identifier_continue(Token& result, const char* curr_ptr);
 
 private:
-    std::string diag;
     // points to the first character
     const char* buffer_start;
     // points to the next position of null terminate character

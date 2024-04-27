@@ -5,7 +5,6 @@
 
 #include <iostream>
 #include <optional>
-#include <any>
 #include <typeinfo>
 
 class Token {
@@ -24,17 +23,7 @@ public:
     void start_token() {
         type = TokenType::ERROR;
         code_view = "";
-        // data.reset();
     }
-
-    /*
-    void set_literal_data(std::string_view ld) { data = ld; }
-    void set_bool_literal_data(bool b) { data = b ? "true" : "false"; }
-    std::string_view get_literal_data() const { return data; }
-
-    void set_identifier_data(std::string_view id) { data = id; }
-    std::string_view get_identifier_data() const { return data; }
-    */
 
     void set_view(std::string_view sv) { code_view = sv; }
     void set_view(const char* begin, const char* end) { code_view = std::string_view(begin, end); }
@@ -44,19 +33,6 @@ public:
     void set_type(TokenType t) { type = t; }
     TokenType get_type() const { return type; }
 
-    /*
-    template <typename T>
-    std::optional<const T&> get_data() const {
-        if (data.has_value() && data.type() == typeid(T)) {
-            return std::any_cast<const T&>(data);
-        }
-        return std::nullopt;
-    }
-    */
-    /*
-    template <typename T>
-    void set_data(const T& d) { data = d; }
-    */
     std::string_view get_name() const { return token_type_name(get_type()); }
 
 private:

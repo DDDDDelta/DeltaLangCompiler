@@ -22,3 +22,11 @@ inline bool isinstance(auto&& obj) requires
     std::is_polymorphic_v<std::decay_t<decltype(obj)>> {
     return dynamic_cast<const To*>(&obj) != nullptr;
 }
+
+template <std::ranges::input_range Range> 
+    requires std::is_pointer_v<std::ranges::range_value_t<Range>>
+void cleanup_ptrs(Range&& range) {
+    for (auto* p : range) {
+        delete p;
+    }
+}

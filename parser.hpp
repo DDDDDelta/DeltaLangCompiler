@@ -1,5 +1,6 @@
 #pragma once
 
+#include "decl.hpp"
 #include "expression.hpp"
 #include "statement.hpp"
 #include "filebuffer.hpp"
@@ -7,57 +8,114 @@
 #include "lexer.hpp"
 #include "utils.hpp"
 
+#include <ranges>
 #include <memory>
+#include <iterator>
 
 class Parser {
 public:
     explicit Parser(const SourceBuffer& src);
     bool parse();
 
-    Stmt* release_statement() {
-        return stmt.release();
+    Decl* release_decl() {
+        return decl.release();
     }
 
 private:
-    TypeInfo type();
+    bool type(Type&);
+
+    Decl* declaration();
+    Decl* variable_declaration();
+
+    template <typename Container>
+    bool parameter_list(std::back_insert_iterator<Container> out) 
+        requires std::same_as<typename Container::value_type, Parameter> {
+        if (!advance_expected(TokenType::LeftParen))
+            return false;
+
+        while (true) {
+            if (!curr_token.is_one_of(TokenType::Identifier)) {
+                return false;
+            }
+
+            std::string_view identifier = curr_token.get_view();
+            advance();
+            if (!advance_expected(TokenType::Colon)) {
+                return false;
+            }
+
+            Type ty;
+            if (!type(ty)) {
+                return false;
+            }
+
+            out = (Parameter) { (std::string)identifier, std::move(ty) };
+
+            if (curr_token.is_one_of(TokenType::Comma)) { // next parameter
+                continue;
+            }
+            else if (curr_token.is_one_of(TokenType::RightParen)) { // end of list
+                break;
+            }
+            else { // diag unrecognized token after type
+                return false;
+            }
+        }
+
+        advance(/* TokenType::RightParen */);
+
+        return true;
+    }
 
     Stmt* statement();
+    Stmt* compound_statement();
+    Stmt* expression_statement();
+    Stmt* return_statement();
 
-    DefStmt* definition_statement();
-    FuncDefStmt* function_definition_statement();
-    LetDefStmt* variable_definition_statement();
-    ParameterList parameter_list();
-    
-    CompoundStmt* compound_statement();
-    ExprStmt* expression_statement();
-    ReturnStmt* return_statement();
+    template <typename Container>
+    bool expression_list(
+        std::back_insert_iterator<Container> out, 
+        TokenType start_token, 
+        TokenType end_token
+    ) requires std::same_as<typename Container::value_type, Expr*> {
+        if (!advance_expected(start_token)) {
+            return false;
+        }
 
-    ExprList expression_list(TokenType start_token, TokenType end_token);
+        while (!curr_token.is_one_of(end_token)) {
+            if (Expr* expr = expression()) {
+                out = expr;
+            }
+            else {
+                return false;
+            }
+        }
+
+        advance();
+        return true;
+    }
+
     Expr* expression();
-    Expr* literal_expression();
     Expr* primary_expression();
+    Expr* integer_literal_expression();
     Expr* postfix_expression();
     Expr* unary_expression();
     Expr* cast_expression();
     // Expr* rhs_of_binary_expression(Expr* lhs);
 
-    std::string_view advance_identifier() {
-        std::string_view id = curr_token.get_view();
-        advance_expected(TokenType::Identifier);
-        return id;
-    }
-
     // TypeInfo type_info();
-    void advance_expected(TokenType type);
+    bool advance_expected(TokenType type);
+    bool advance_expected_next(TokenType type);
+
+    void advance_both();
+    void advance_next();
     void advance();
-    bool advance_noexc() noexcept;
-    
-    void handel_lex_stop();
 
 private:
     Lexer lexer;
+
     Token curr_token;
     Token next_token;
 
-    std::unique_ptr<DefStmt> stmt;
+    std::unique_ptr<Decl> decl;
 };

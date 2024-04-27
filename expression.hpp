@@ -7,6 +7,11 @@
 #include "typeinfo.hpp"
 #include "operators.hpp"
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/SmallVector.h"
+
 #include <concepts>
 #include <cstdint>
 #include <cstddef>
@@ -15,144 +20,180 @@
 #include <any>
 #include <string>
 #include <string_view>
-#include <format>
-#include <charconv>
+// #include <format>
 
-struct Expr {
+class Expr {
 public:
-    TypeInfo type;
-
+    Expr() = default;
+    Expr(Type type) : exprtype(std::move(type)) {}
+    Expr(const Expr&) = delete;
+    Expr(Expr&&) = delete;
     virtual ~Expr() = 0;
+
+    bool is_rval() const {
+        return typecate == TypeCate::RValue;
+    }
+
+    bool is_lval() const {
+        return typecate == TypeCate::LValue;
+    }
+
+    bool is_unclassified() const {
+        return typecate == TypeCate::Unclassified;
+    }
+
+    bool can_modify() {
+        return !exprtype.constness();
+    }
+
+    Type& type() {
+        return exprtype;
+    }
+
+    const Type& type() const {
+        return exprtype;
+    }
+
+protected:
+    enum class TypeCate {
+        RValue,
+        LValue,
+        Unclassified,
+    } typecate;
+
+private:
+    Type exprtype;
 };
 
 inline Expr::~Expr() = default;
 
-
-struct BinaryExpr : public Expr {
+class BinaryExpr : public Expr {
 public:
-    ~BinaryExpr() override { delete lhs; delete rhs; };
+    BinaryExpr(Type type, Expr* lhs, BinaryOp op, Expr* rhs) : 
+        Expr(std::move(type)), exprs { lhs, rhs }, op(op) {}
 
-    Expr* lhs  = nullptr;
+    ~BinaryExpr() override { delete exprs[LHS]; delete exprs[RHS]; };
+
+    Expr* lhs() const { return exprs[LHS]; }
+    void lhs(Expr* expr) { exprs[LHS] = expr; }
+    Expr* rhs() const { return exprs[RHS]; }
+    void rhs(Expr* expr) { exprs[RHS] = expr; }
+
+    BinaryOp op_code() { return op; }
+
+private:
+    enum { LHS, RHS, EXPR_END };
+    Expr* exprs[EXPR_END];
     BinaryOp op;
-    Expr* rhs  = nullptr;
 };
 
-struct UnaryExpr : public Expr {
+class UnaryExpr : public Expr {
 public:
+    UnaryExpr(Type type, UnaryOp op, Expr* expr) :
+        Expr(std::move(type)), op(op), mainexpr(expr) {}
+
     ~UnaryExpr() override { delete mainexpr; };
 
+    Expr* expr() const { return mainexpr; }
+    void expr(Expr* expr) { mainexpr = expr; }
+
+private:
     UnaryOp op;
-    Expr* mainexpr = nullptr;
+    Expr* mainexpr;
 };
 
-using ExprList = std::vector<Expr*>;
-
-struct PostfixExpr : public Expr {
+class PostfixExpr : public Expr {
 public:
+    PostfixExpr(const Type& type, Expr* expr) :
+        Expr(type), mainexpr(expr) {}
     ~PostfixExpr() override = 0;
 
-    Expr* mainexpr = nullptr;
-    PostfixOp op;
+    Expr* expr() const { return mainexpr; }
+    void expr(Expr* expr) { mainexpr = expr; }
+
+private:
+    Expr* mainexpr;
 };
 
 inline PostfixExpr::~PostfixExpr() = default;
 
-struct CallExpr : public PostfixExpr {
+class CallExpr : public PostfixExpr {
 public:
+    CallExpr(Type type, Expr* expr, llvm::ArrayRef<Expr*> arguments) : 
+        PostfixExpr(std::move(type), expr), args(arguments) {}
+
     ~CallExpr() override {
         for (auto* arg : args) {
             delete arg;
         }
     }
 
-    ExprList args;
+private:
+    llvm::SmallVector<Expr*> args;
 };
 
-struct IndexExpr : public PostfixExpr {
+class IndexExpr : public PostfixExpr {
 public:
+    IndexExpr(Type type, Expr* expr, Expr* index) : 
+        PostfixExpr(std::move(type), expr), index(index) {}
+
     ~IndexExpr() override { delete index; }
 
+private:
     Expr* index = nullptr;
 };
 
-struct CastExpr : public Expr {
+class CastExpr : public Expr {
 public:
+    CastExpr(Type type, Expr* expr) : Expr(std::move(type)), expr(expr) {}
     ~CastExpr() override { delete expr; }
 
-    Expr* expr = nullptr;
+private:
+    Expr* expr;
 };
 
-struct PrimaryExpr : public Expr {
+class IdExpr : public Expr {
 public:
-    ~PrimaryExpr() override = 0;
-};
-
-inline PrimaryExpr::~PrimaryExpr() = default;
-
-struct IdExpr : public PrimaryExpr {
-public:
+    IdExpr(Type type, std::string_view id) : 
+        Expr(std::move(type)), identifier(id) {}
     ~IdExpr() override = default;
 
+private:
     std::string identifier;
 };
 
-inline bool is_literal_token(const Token& tk) {
-    return tk.is_one_of(
-        TokenType::HexIntLiteral, 
-        TokenType::DecIntLiteral, 
-        TokenType::FloatLiteral, 
-        TokenType::StringLiteral, 
-        TokenType::CharLiteral
-    );
-}
-
-struct LiteralExpr : public PrimaryExpr {
+class IntLiteralExpr : public Expr {
 public:
-    ~LiteralExpr() override = 0;
-};
+    IntLiteralExpr(
+        Type type, 
+        std::uint32_t numbits, 
+        std::string_view literalrepr, 
+        bool is_unsigned = true,
+        std::uint8_t radix = 10
+    ) : Expr(std::move(type)), data(llvm::APInt(numbits, literalrepr, radix), is_unsigned) {}
 
-inline LiteralExpr::~LiteralExpr() = default;
-
-struct IntLiteralExpr : public LiteralExpr {
-public:
-    ~IntLiteralExpr() override = default;
+    IntLiteralExpr(Type type, llvm::APInt data, bool is_unsigned = true) : 
+        Expr(std::move(type)), data(std::move(data), is_unsigned) {}
     
-    template <std::integral T>
-    T get_int() {
-        T val;
-        std::memcpy(&val, data, sizeof(T));
-        return val;
-    }
-
-    template <std::integral T>
-    void set_int(T val) {
-        std::memcpy(data, &val, sizeof(T));
-    }
+    ~IntLiteralExpr() override = default;
 
 private:
-    std::byte data[8] = {};
+    llvm::APSInt data;
 };
 
-struct FloatLiteralExpr : public LiteralExpr {
+class ParenExpr : public Expr {
 public:
-    ~FloatLiteralExpr() override = default;
+    ParenExpr(Expr* expr) : expr(expr) {
+        type() = expr->type();
+    }
 
-    double data = 0.0;
-};
-
-struct StringLiteralExpr : public LiteralExpr {
-public:
-    ~StringLiteralExpr() override = default;
-
-    std::string_view data;
-};
-
-struct ParenExpr : public PrimaryExpr {
-public:
     ~ParenExpr() override { delete expr; }
 
-    Expr* expr = nullptr;
+private:
+    Expr* expr;
 };
+
+/*
 
 template <typename FormatContext>
 std::string format_expr(const Expr& expr, FormatContext& ctx, int indent = 0) {
@@ -236,3 +277,5 @@ struct std::formatter<UnaryExpr> : std::formatter<std::string> {
         return std::format_to(ctx.out(), "UnaryExpr: {}\n", op_str);
     }
 };
+
+*/

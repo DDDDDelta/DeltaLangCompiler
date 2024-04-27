@@ -1,22 +1,6 @@
 #include "parser.hpp"
 
-class ParseStop : public std::exception {
-public:
-    enum StopType {
-        LexerError,
-        ParserError,
-        EndOfFile,
-    };
-
-public:
-    explicit ParseStop(/* fileid */ StopType type = ParserError) : type(type) {}
-    StopType get_type() const { return type; }
-    const char* what() const noexcept override { return /* file */ "compilation ended"; }
-    ~ParseStop() override = default; // TODO: emit error message
-
-private:
-    StopType type;
-};
+#include "literal_support.hpp"
 
 Parser::Parser(const SourceBuffer& src) : lexer(src) {
     lexer.lex(curr_token); // must at least have an EOF token
@@ -30,62 +14,39 @@ Parser::Parser(const SourceBuffer& src) : lexer(src) {
 
 /*
  * Program
- *     : DefStmt*
+ *     : Decl*
  *     ;
  */
 bool Parser::parse() {
     assert(!curr_token.is_one_of(TokenType::ERROR));
 
     if (curr_token.is_one_of(TokenType::EndOfFile)) {
-        std::cout << "empty file" << std::endl;
+        // diag empty file
         return false;
     }
 
-    DefStmt* new_stmt = nullptr;
-    try {
-        new_stmt = definition_statement();
-        assert(new_stmt != nullptr); // must succeed or throw
-
-        stmt.reset(new_stmt); // noexcept here
-    } catch (const ParseStop& e) {
-        std::cout << &e << std::endl;
-        if (e.get_type() == ParseStop::EndOfFile) {
-            std::cout << "early eof" << std::endl;
-        }
-        else if (e.get_type() == ParseStop::LexerError) {
-            std::cout << "lexer error" << std::endl;
-        }
-        else if (e.get_type() == ParseStop::ParserError) {
-            std::cout << "parser error" << std::endl;
-        }
-        else {
-            std::cout << "unknown error" << std::endl;
-        }
-
-        delete new_stmt; // just to make sure
-
-        return false;
-    }
-
-    return true;
-}
-
-/*
- * DefStmt
- *     : FuncDefStmt
- *     | LetDefStmt
- *     ;
- */
-DefStmt* Parser::definition_statement() {
-    if (curr_token.is_one_of(TokenType::Fn)) {
-        return function_definition_statement();
-    } else if (curr_token.is_one_of(TokenType::Let)) {
-        return variable_definition_statement();
+    Decl* new_decl = declaration();
+    if (new_decl != nullptr) {
+        decl.reset(new_decl);
+        return true;
     } else {
-        // unrecognized token
-        throw ParseStop(ParseStop::ParserError);
+        return false;
     }
 }
+
+Decl* Parser::declaration() {
+    if (curr_token.is_one_of(TokenType::Let)) {
+        return variable_declaration();
+    } 
+    else if (curr_token.is_one_of(TokenType::Fn)) {
+        return nullptr;
+    }
+    else {
+        return nullptr;
+    }
+}
+
+
 
 /*
  * ParameterList
@@ -96,82 +57,6 @@ DefStmt* Parser::definition_statement() {
  *     : Identifier ':' Type
  *     ;
  */
-ParameterList Parser::parameter_list() {
-    ParameterList list;
-
-    advance_expected(TokenType::LeftParen);
-
-    while (!curr_token.is_one_of(TokenType::RightParen)) {
-        Parenmeter param;
-        param.identifier = advance_identifier();
-        advance_expected(TokenType::Colon);
-        param.type = type();
-        // parenmeter
-
-        list.emplace_back(std::move(param));
-
-        // does not forbid trailing comma
-        if (curr_token.is_one_of(TokenType::Comma)) {
-            advance_expected(TokenType::Comma);
-        }
-    }
-
-    advance_expected(TokenType::RightParen);
-
-    return list;
-}
-
-/*
- * FuncDefStmt
- *     : 'fn' Identifier ParenList '->' Type CompoundStmt
- *     ;
- */
-FuncDefStmt* Parser::function_definition_statement() {
-    std::unique_ptr<FuncDefStmt> defstmt = std::make_unique<FuncDefStmt>(); // exception safe
-
-    advance_expected(TokenType::Fn);
-
-    if (!curr_token.is_one_of(TokenType::Identifier)) {
-        throw ParseStop(ParseStop::ParserError);
-    }
-
-    defstmt->identifier = advance_identifier();
-    defstmt->params = parameter_list();
-    
-    advance_expected(TokenType::MinusGreater);
-
-    defstmt->rettype = (TypeInfo)(std::string)advance_identifier();
-    defstmt->funcbody = compound_statement();
-
-    return defstmt.release();
-}
-
-/*
- * LetDefStmt
- *     : 'let' Identifier ':' Type '=' Expr
- *     ;
- */
-LetDefStmt* Parser::variable_definition_statement() {
-    std::unique_ptr<LetDefStmt> defstmt = std::make_unique<LetDefStmt>(); // exception safe
-
-    advance_expected(TokenType::Let);
-
-    if (!curr_token.is_one_of(TokenType::Identifier)) {
-        throw ParseStop(ParseStop::ParserError);
-    }
-
-    defstmt->identifier = advance_identifier();
-
-    advance_expected(TokenType::Colon);
-    
-    defstmt->vartype = type();
-
-    advance_expected(TokenType::Equal);
-
-    defstmt->defexpr = expression();
-
-    return defstmt.release();
-}
 
 /*
  * CompoundStmt
@@ -182,6 +67,7 @@ LetDefStmt* Parser::variable_definition_statement() {
  *     : Stmt*
  *     ;
  */
+/*
 CompoundStmt* Parser::compound_statement() {
     std::unique_ptr<CompoundStmt> compstmt = std::make_unique<CompoundStmt>();
 
@@ -196,12 +82,14 @@ CompoundStmt* Parser::compound_statement() {
 
     return compstmt.release();
 }
+*/
 
 /*
  * ExprStmt
  *     : Expr ';'
  *     ;
  */
+/*
 ExprStmt* Parser::expression_statement() {
     std::unique_ptr<ExprStmt> exprstmt = std::make_unique<ExprStmt>();
 
@@ -210,6 +98,7 @@ ExprStmt* Parser::expression_statement() {
 
     return exprstmt.release();
 }
+*/
 
 /*
  * Type
@@ -217,25 +106,39 @@ ExprStmt* Parser::expression_statement() {
  *     | '*' Type
  *     ;
  */
-TypeInfo Parser::type() {
-    if (curr_token.is_one_of(TokenType::Identifier)) {
-        return TypeInfo((std::string)advance_identifier());
+bool Parser::type(Type& newtype) {
+    newtype = Type(); // reset type object just in case
+
+    while (true) {
+        if (curr_token.is_one_of(TokenType::Identifier)) {
+            BasicType* ty; // = action.get_basic_type_with_id(curr_token.get_view());
+            if (ty == nullptr) {
+                // TODO: error unrecognized basic type
+                return false;
+            }
+
+            newtype.set_basic_ty(ty);
+            return true;
+        }
+        else if (curr_token.is_one_of(TokenType::Star)) {
+            advance();
+            newtype.add_ptr();
+            // continue to parse compound type
+        }
+        else { // TODO: unrecognized token in type
+            return false;
+        }
     }
-    else if (curr_token.is_one_of(TokenType::Star)) {
-        advance_expected(TokenType::Star);
-        return type().add_pointer();
-    }
-    else { // TODO: unrecognized token in type
-        throw ParseStop(ParseStop::ParserError);
-    }
+
+    DELTA_UNREACHABLE("logically unreachable");
 }
 
 /*
  * ReturnStmt
  *     : 'return' Expr? ';'
  */
+/*
 ReturnStmt* Parser::return_statement() {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
     std::unique_ptr<ReturnStmt> retstmt = std::make_unique<ReturnStmt>();
 
     advance_expected(TokenType::Return);
@@ -248,6 +151,7 @@ ReturnStmt* Parser::return_statement() {
 
     return retstmt.release();
 }
+*/
 
 /*
  * Stmt
@@ -258,8 +162,8 @@ ReturnStmt* Parser::return_statement() {
  *     | ReturnStmt
  *     ;
  */
+/*
 Stmt* Parser::statement() {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
     switch (curr_token.get_type()) {
         using enum TokenType;
     case LeftBrace:
@@ -274,79 +178,14 @@ Stmt* Parser::statement() {
         return expression_statement();
     }
 }
-
-ExprList Parser::expression_list(TokenType start_token, TokenType end_token) {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
-    ExprList list;
-
-    advance_expected(start_token);
-
-    while (curr_token.is_one_of(end_token)) {
-        try {
-            list.push_back(expression()); // expression() may throw and push_back is noexcept
-        } catch (...) {
-            for (auto* expr : list) {
-                delete expr;
-            }
-            throw;
-        }
-
-        if (curr_token.is_one_of(TokenType::Comma)) {
-            advance();
-        }
-        else {
-            break;
-        }
-    }
-
-    advance_expected(end_token);
-
-    return list;
-}
-
+*/
 /*
  * Expr
  *     : PostfixExpr
  *     ;
  */
 Expr* Parser::expression() {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
     return cast_expression();
-}
-
-/*
- * LiteralExpr
- *     : IntLiteralExpr
- *     | FloatLiteralExpr
- *     | StringLiteralExpr
- *     ;
- */
-Expr* Parser::literal_expression() {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
-    std::unique_ptr<LiteralExpr> litexpr;
-
-    switch (curr_token.get_type()) {
-        using enum TokenType;
-    case HexIntLiteral:
-    case DecIntLiteral:
-        litexpr.reset(new IntLiteralExpr);
-        break;
-    case FloatLiteral:
-        litexpr.reset(new FloatLiteralExpr);
-        break;
-    case StringLiteral:
-        litexpr.reset(new StringLiteralExpr);
-        break;
-    default:
-        throw ParseStop(ParseStop::ParserError);
-        // asserted to be valid literal token
-    }
-    
-    litexpr->type = TypeInfo(curr_token.get_type());
-
-    advance(); // consume the literal token
-
-    return litexpr.release();
 }
 
 /*
@@ -366,10 +205,13 @@ Expr* Parser::literal_expression() {
  * 
  */
 Expr* Parser::primary_expression() {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
-    if (is_literal_token(curr_token)) {
-        return literal_expression();
+    if (curr_token.is_one_of(
+        TokenType::HexIntLiteral, TokenType::DecIntLiteral
+    )) {
+        return integer_literal_expression();
     }
+    // dont have sema yet...
+    /*
     else if (curr_token.is_one_of(TokenType::Identifier)) {
         std::unique_ptr<IdExpr> idexpr = std::make_unique<IdExpr>();
 
@@ -377,49 +219,83 @@ Expr* Parser::primary_expression() {
 
         return idexpr.release();
     }
+    */
     else if (curr_token.is_one_of(TokenType::LeftParen)) {
-        advance_expected(TokenType::LeftParen);
+        advance();
 
-        std::unique_ptr<ParenExpr> expr = std::make_unique<ParenExpr>();
-        expr->expr = expression();
-        expr->type = expr->expr->type;
+        Expr* expr = expression();
+        if (expr == nullptr) {
+            return nullptr;
+        }
 
-        advance_expected(TokenType::RightParen);
+        if (!advance_expected(TokenType::RightParen)) {
+            delete expr;
+            return nullptr;
+        }
 
-        return expr.release();
+        return new ParenExpr(expr);
     }
 
-    throw ParseStop(ParseStop::ParserError); // TODO: unrecognized token for primary expression
+    // TODO: unrecognized token for primary expression
+    return nullptr;
+}
+
+Expr* Parser::integer_literal_expression() {
+    std::uint8_t posix = 10;
+    switch (curr_token.get_type()) {
+        using enum TokenType; 
+    case HexIntLiteral: {
+        posix = 16;
+        [[fallthrough]]
+    case DecIntLiteral:
+        Type spectype; // = action.get_i32_ty();
+
+        if (next_token.is_one_of(As)) {
+            if (!type(spectype)) {
+                return nullptr;
+            }
+        }
+
+        // sema.is_compatibile(spectype);
+        // error incompatible specified type for int literal
+        bool is_unsigned = true; // sema.is_signed_ty(spectype);
+        std::uint32_t bitwidth = 32; // sema.type_size(spectype);
+
+        IntLiteralParser literal_parser(curr_token.get_view(), posix);
+        llvm::APSInt val(bitwidth, is_unsigned);
+
+        literal_parser.get_apint_val(val);
+
+        advance();
+
+        return new IntLiteralExpr(std::move(spectype), std::move(val));
+    }
+    default:
+        DELTA_UNREACHABLE("must be a literal expression type token");
+    }
 }
 
 /* PostfixExpression:
  *     : PrimaryExpression
  *     | PostFixExpression '(' ExpressionList ')'   (CallExpression)
  *     | PostFixExpression '[' Expression ']'       (IndexExpression) // TODO: implement this
- *     | LiteralExpression '::' Typename
  *     ;
  */
 Expr* Parser::postfix_expression() {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
-    std::unique_ptr<Expr> primexpr(primary_expression());
-
-    // LiteralExpression '::' Typename
-    // literal type specifier
-    if (isinstance<LiteralExpr>(primexpr.get())) {
-        if (curr_token.is_one_of(TokenType::ColonColon)) {
-            advance();
-
-            TypeInfo cast_to = type();
-            // TODO: check if cast_to is valid type for literal
-            primexpr->type = std::move(cast_to);
-        }
-    }
-
     // CallExpression or IndexExpression
+
+    // lets forget about this for a sec...
+    /*
     while (true) {
         if (curr_token.is_one_of(TokenType::LeftParen)) {
-            std::unique_ptr<CallExpr> callexpr = std::make_unique<CallExpr>();
-            callexpr->args = expression_list(TokenType::LeftParen, TokenType::RightParen);
+            std::vector<Expr*> args;
+            bool is_valid = expression_list(args, TokenType::LeftParen, TokenType::RightParen);
+            if (!is_valid) {
+                for (auto* p : args)
+                    delete p;
+
+                return nullptr;
+            }
 
             callexpr->mainexpr = primexpr.release(); // noexcept
             primexpr.reset(callexpr.release()); // noexcept
@@ -428,22 +304,9 @@ Expr* Parser::postfix_expression() {
         }
         // TODO: index expression
     }
-    /* cannot have mutable explicit this
-    [&primexpr, parser = this](this auto&& self) mutable -> void {
-        if (curr_token.is_one_of(TokenType::LeftParen)) {
-            std::unique_ptr<CallExpr> callexpr = std::make_unique<CallExpr>();
-            callexpr->args = parser->expression_list(TokenType::LeftParen, TokenType::RightParen);
-
-            callexpr->mainexpr = primexpr.release(); // noexcept
-            primexpr.reset(callexpr.release()); // noexcept
-
-            self();
-        }
-        // TODO: index expression
-    } ();
     */
 
-    return primexpr.release();
+    return primary_expression();
 }
 
 /*
@@ -453,16 +316,18 @@ Expr* Parser::postfix_expression() {
  *     ;
  */
 Expr* Parser::unary_expression() {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
     if (is_unary_operator(curr_token)) {
-        std::unique_ptr<UnaryExpr> unaryexpr = std::make_unique<UnaryExpr>();
 
-        unaryexpr->op = *to_unary_operator(curr_token.get_type());
+        UnaryOp op = *to_unary_operator(curr_token.get_type());
         advance();
 
-        unaryexpr->mainexpr = unary_expression();
+        Expr* expr = unary_expression();
+        if (!expr)
+            return nullptr;
 
-        return unaryexpr.release();
+        Type type; // = sema.unaryexpr_type(op, expr);
+
+        return new UnaryExpr(std::move(type), op, expr);
     }
     else {
         return postfix_expression();
@@ -472,59 +337,67 @@ Expr* Parser::unary_expression() {
 /*
  * CastExpression
  *     : UnaryExpression
- *     | CastExpression '::' Typename
+ *     | CastExpression 'as' Typename
  *     ;
  */
 Expr* Parser::cast_expression() {
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
-    std::unique_ptr<Expr> unaryexpr(unary_expression());
+    Expr* expr = unary_expression();
+    if (!expr)
+        return nullptr;
 
-    while (curr_token.is_one_of(TokenType::ColonColon)) {
+    while (curr_token.is_one_of(TokenType::As)) {
         advance();
 
-        std::unique_ptr<CastExpr> castexpr = std::make_unique<CastExpr>();
-        castexpr->expr = unaryexpr.release(); // noexcept
-        castexpr->type = type();
-
-        unaryexpr.reset(castexpr.release()); // noexcept
-    }
-
-    return unaryexpr.release();
-}
-
-
-
-void Parser::advance_expected(TokenType type) {
-    if (curr_token.is_one_of(type)) {
-        if (!advance_noexc()) {
-            handel_lex_stop();
+        Type cast_to;
+        if (!type(cast_to)) {
+            // error invalid type
+            delete expr;
+            return nullptr;
         }
-        return;
+
+        // if (!sema.validate_cast(expr, type)) {
+        //     delete expr;
+        //     return nullptr;
+        // }
+
+        CastExpr* castexpr = new CastExpr(std::move(cast_to), expr);
     }
 
-    // TODO: diag expects token type
-    std::cout << "unexpected token type" << std::endl;
-    std::cout << "expected: " << token_type_name(type) << std::endl;
-    throw ParseStop(ParseStop::ParserError);
+    // act on expr
+
+    return expr;
 }
 
-bool Parser::advance_noexc() noexcept {
-    curr_token = std::move(next_token);
-    std::cout << "curr_token: " << curr_token << std::endl;
-    return lexer.lex(next_token);
+
+
+bool Parser::advance_expected(TokenType type) {
+    if (!curr_token.is_one_of(type)) {
+        return false;
+    }
+
+    advance();
+    return true;
+}
+
+bool Parser::advance_expected_next(TokenType type) {
+    if (!next_token.is_one_of(type)) {
+        return false;
+    }
+
+    advance_next();
+    return true;
 }
 
 void Parser::advance() {
-    if (!advance_noexc()) {
-        handel_lex_stop();
-    }
+    curr_token = std::move(next_token);
+    lexer.lex(next_token);
 }
 
-void Parser::handel_lex_stop() {
-    if (lexer.is_eof()) {
-        throw ParseStop(ParseStop::EndOfFile);
-    }
+void Parser::advance_next() {
+    lexer.lex(next_token);
+}
 
-    // TODO: diag error type
-    throw ParseStop(ParseStop::LexerError);
+void Parser::advance_both() {
+    lexer.lex(curr_token);
+    lexer.lex(next_token);
 }

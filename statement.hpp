@@ -4,65 +4,34 @@
 #include "typeinfo.hpp"
 
 #include <vector>
+#include <algorithm>
 
-struct Stmt {
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
+
+class Stmt {
 public:
     virtual ~Stmt() = 0;
 };
 
 inline Stmt::~Stmt() = default;
 
-using StmtList = std::vector<Stmt*>;
-
-struct Parenmeter {
-    std::string identifier;
-    TypeInfo type;
-};
-
-using ParameterList = std::vector<Parenmeter>;
-
-struct ExprStmt : public Stmt {
+class CompoundStmt : public Stmt {
 public:
-    ~ExprStmt() override { delete expr; }
-
-    Expr* expr;
-};
-
-struct CompoundStmt : public Stmt {
-public:
-    ~CompoundStmt() override {
-        for (auto* stmt : stmts) {
-            delete stmt;
+    CompoundStmt(llvm::ArrayRef<Stmt*> stmtlist) : stmtlist(stmtlist) {}
+    ~CompoundStmt() { 
+        for (auto* p : stmtlist) {
+            delete p;
         }
     }
 
-    StmtList stmts;
+private:
+    llvm::SmallVector<Stmt*> stmtlist;
 };
 
-struct DefStmt : public Stmt {
-public:
-    std::string identifier;
-};
 
-struct FuncDefStmt : public DefStmt {
-public:
-    ParameterList params;
-    TypeInfo rettype;
-    CompoundStmt* funcbody;
-};
 
-struct LetDefStmt : public DefStmt {
-public:
-    TypeInfo vartype;
-    Expr* defexpr;
-};
-
-struct ReturnStmt : public Stmt {
-public:
-    ~ReturnStmt() override { delete expr; }
-    Expr* expr;
-};
-
+/*
 template <typename FormatContext>
 std::string format_stmt(const Stmt& stmt, FormatContext& ctx, int indent = 0) {
     std::string indent_str = std::string(indent*4, ' ');
@@ -126,3 +95,5 @@ struct std::formatter<LetDefStmt> : std::formatter<std::string> {
         return std::format_to(ctx.out(), "LetDefStmt: {} {} {{\n", stmt.vartype.name, stmt.identifier);
     }
 };
+
+*/
