@@ -31,10 +31,10 @@ public:
     VarDecl(std::string identifier, Expr* expr) : 
         Decl(std::move(identifier)), type(std::nullopt), expr(expr) {}
 
-    VarDecl(std::string identifier, const Type& type) : 
+    VarDecl(std::string identifier, const QualType& type) : 
         Decl(std::move(identifier)), type(type), expr(nullptr) {}
 
-    VarDecl(std::string identifier, const Type& type, Expr* expr) : 
+    VarDecl(std::string identifier, const QualType& type, Expr* expr) : 
         Decl(std::move(identifier)), type(type), expr(expr) {}
 
     ~VarDecl() override = default;
@@ -49,12 +49,12 @@ public:
     }
 
 private:
-    std::optional<Type> type;
+    std::optional<QualType> type;
     Expr* expr;
 };
 
 struct Parameter {
     std::string name;
-    Type type;
+    QualType type;
 };
 

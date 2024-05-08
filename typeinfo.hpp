@@ -1,13 +1,15 @@
 #pragma once
 
+#include "utils.hpp"
+
 #include <string>
 #include <string_view>
 #include <utility>
 #include <cassert>
-#include <unordered_set>
+#include <set>
 #include <compare>
 
-#include "llvm/Support/Casting.h"
+#include "llvm/ADT/ArrayRef.h"
 
 class BasicTypeManager;
 
@@ -31,72 +33,50 @@ private:
     std::string name;
 };
 
-inline std::strong_ordering operator <=>(const BasicType& lhs, const BasicType& rhs) {
-    return lhs.repr() <=> rhs.repr();
-}
-
-// TODO: refactor needed since BasicType will be polymorphic
-class BasicTypeManager {
-public:
-    BasicTypeManager();
-
-    bool has_type(BasicType* ty) const {
-        return table.find(*ty) != table.end();
-    }
-
-    bool has_type_name(std::string_view name) const {
-        BasicType tempty((std::string)name);
-        return has_type(&tempty);
-    }
-
-    BasicType* register_type(std::string_view name) {
-        return const_cast<BasicType*>(&*table.emplace((std::string)name).first);
-    }
-
-    BasicType* get_type_name(std::string_view name) {
-        return const_cast<BasicType*>(&*table.find((BasicType)(std::string)name));
-    }
-
+/*
+ * Type -+-> CompoundType -+-> PtrType
+ *       |                 +-> ArrayRefType
+ *       |                 `-> ArrayType
+ *       +-> BaseType
+ *       `-> FunctionType
+ * 
+ * 
+ */
+class QualType {
 private:
-    std::unordered_set<BasicType> table;
-};
-
-
-
-class Type {
-private:
-    class QualType;
+    class Type;
+    class FunctionType;
     class PtrType;
-    class ConcreteType;
+    class BaseType;
 
 public:
-    Type() : type(new ConcreteType(BasicType::void_ty, false)), conctype((ConcreteType*)type) {}
+    QualType() : type(new BaseType(BasicType::void_ty, false)), conctype((BaseType*)type) {}
 
-    Type(BasicType* basictype, bool constness = false) : 
-        type(new ConcreteType(basictype, constness)), conctype((ConcreteType*)type) {}
+    QualType(BasicType* basictype, bool constness = false) : 
+        type(new BaseType(basictype, constness)), conctype((BaseType*)type) {}
 
-    Type(const Type& other) : compoundlv(other.compoundlv) {
-        conctype = new ConcreteType(other.conctype->basic_ty(), other.conctype->constness());
+    QualType(const QualType& other) : compoundlv(other.compoundlv) {
+        conctype = new BaseType(other.conctype->basic_ty(), other.conctype->constness());
         type = other.type->copy(conctype);
     }
 
-    Type(Type&& other) : 
+    QualType(QualType&& other) : 
         type(other.type), conctype(other.conctype), compoundlv(other.compoundlv) {
         other.type = nullptr;
         other.conctype = nullptr;
     }
 
-    Type& operator =(const Type& rhs) {
+    QualType& operator =(const QualType& rhs) {
         if (&rhs == this) {
             return *this;
         }
 
-        Type newty = rhs;
+        QualType newty = rhs;
         swap(newty);
         return *this;
     }
 
-    Type& operator =(Type&& rhs) {
+    QualType& operator =(QualType&& rhs) {
         if (&rhs == this) {
             return *this;
         }
@@ -105,13 +85,13 @@ public:
         return *this;
     }
 
-    void swap(Type& other) {
+    void swap(QualType& other) {
         std::swap(type, other.type);
         std::swap(conctype, other.conctype);
         std::swap(compoundlv, other.compoundlv);
     }
 
-    ~Type() { delete type; }
+    ~QualType() { delete type; }
 
 public:
     std::string repr() const {
@@ -123,11 +103,11 @@ public:
     }
 
     bool is_compound_ty() const {
-        return llvm::isa<CompoundType>(type);
+        return isinstance<CompoundType>(*type);
     }
 
     bool is_ptr_ty() const {
-        return llvm::isa<PtrType>(type);
+        return isinstance<PtrType>(*type);
     }
 
     void remove_ptr() {
@@ -157,7 +137,7 @@ public:
         return compoundlv;
     }
 
-    friend bool operator ==(const Type& lhs, const Type& rhs) {
+    friend bool operator ==(const QualType& lhs, const QualType& rhs) {
         if (*lhs.conctype->basic_ty() != *rhs.conctype->basic_ty())
             return false;
         
@@ -166,12 +146,12 @@ public:
     }
 
 private:
-    class QualType {
+    class Type {
     public:
-        QualType(bool constness) : is_const(constness) {}
-        QualType(const QualType&) = delete;
-        QualType(QualType&&) = delete;
-        virtual ~QualType() = default;
+        Type(bool constness) : is_const(constness) {}
+        Type(const Type&) = delete;
+        Type(Type&&) = delete;
+        virtual ~Type() = default;
         
         std::string repr() const {
             return get_name() + (is_const ? " const" : "");
@@ -182,7 +162,7 @@ private:
         }
 
         [[nodiscard]] 
-        virtual QualType* copy(ConcreteType* concty) const = 0;
+        virtual Type* copy(BaseType* concty) const = 0;
 
     protected:
         virtual std::string get_name() const = 0;
@@ -192,31 +172,46 @@ private:
         bool is_const;
     };
 
-    class CompoundType : public QualType {
+    class CompoundType : public Type {
     public:
-        CompoundType(QualType* type, bool constness) : QualType(constness), type_under(type) {}
+        CompoundType(Type* type, bool constness) : Type(constness), type_under(type) {}
         ~CompoundType() override {
             delete type_under;
         }
 
-        QualType* release() noexcept {
-            QualType* ret = type_under;
+        Type* release() noexcept {
+            Type* ret = type_under;
             type_under = nullptr;
             return ret;
         }
 
     protected:
-        QualType* type_under;
+        Type* type_under;
+    };
+
+    class FunctionType : public Type {
+    public:
+        FunctionType(llvm::ArrayRef<Type*> args_ty, Type* return_ty) : 
+            Type(true), args_ty(args_ty), return_ty(return_ty) {}
+        
+        ~FunctionType() override {
+            cleanup_ptrs(args_ty);
+            delete return_ty;
+        }
+
+    private:
+        llvm::SmallVector<Type*> args_ty;
+        Type* return_ty;
     };
 
     class PtrType : public CompoundType {
     public:
-        PtrType(QualType* type, bool constness) : CompoundType(type, constness) {
+        PtrType(Type* type, bool constness) : CompoundType(type, constness) {
             assert(type != nullptr);
         }
         ~PtrType() override = default;
 
-        [[nodiscard]] QualType* copy(ConcreteType* concty) const override {
+        [[nodiscard]] Type* copy(BaseType* concty) const override {
             return new PtrType(type_under->copy(concty), constness());
         }
 
@@ -224,10 +219,10 @@ private:
         std::string get_name() const override { return "*" + type_under->get_name(); }
     };
 
-    class ConcreteType : public QualType {
+    class BaseType : public Type {
     public:
-        ConcreteType(BasicType* type, bool constness) : QualType(constness), type(type) {}
-        ~ConcreteType() override = default;
+        BaseType(BasicType* type, bool constness) : Type(constness), type(type) {}
+        ~BaseType() override = default;
 
         void reset(BasicType* newty) {
             assert(newty != nullptr);
@@ -239,7 +234,7 @@ private:
             return type;
         }
 
-        [[nodiscard]] QualType* copy(ConcreteType* concty) const override {
+        [[nodiscard]] Type* copy(BaseType* concty) const override {
             return concty;
         }
 
@@ -251,7 +246,7 @@ private:
     };
 
 private:
-    QualType* type;
-    ConcreteType* conctype;
+    Type* type;
+    BaseType* conctype;
     std::size_t compoundlv = 0;
 };

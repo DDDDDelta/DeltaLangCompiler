@@ -54,7 +54,7 @@ Decl* Parser::declaration() {
  *     ;
  * 
  * Parameter
- *     : Identifier ':' Type
+ *     : Identifier ':' QualType
  *     ;
  */
 
@@ -106,8 +106,8 @@ ExprStmt* Parser::expression_statement() {
  *     | '*' Type
  *     ;
  */
-bool Parser::type(Type& newtype) {
-    newtype = Type(); // reset type object just in case
+bool Parser::type(QualType& newtype) {
+    newtype = QualType(); // reset type object just in case
 
     while (true) {
         if (curr_token.is_one_of(TokenType::Identifier)) {
@@ -248,7 +248,7 @@ Expr* Parser::integer_literal_expression() {
         posix = 16;
         [[fallthrough]]
     case DecIntLiteral:
-        Type spectype; // = action.get_i32_ty();
+        QualType spectype; // = action.get_i32_ty();
 
         if (next_token.is_one_of(As)) {
             if (!type(spectype)) {
@@ -325,7 +325,7 @@ Expr* Parser::unary_expression() {
         if (!expr)
             return nullptr;
 
-        Type type; // = sema.unaryexpr_type(op, expr);
+        QualType type; // = sema.unaryexpr_type(op, expr);
 
         return new UnaryExpr(std::move(type), op, expr);
     }
@@ -348,7 +348,7 @@ Expr* Parser::cast_expression() {
     while (curr_token.is_one_of(TokenType::As)) {
         advance();
 
-        Type cast_to;
+        QualType cast_to;
         if (!type(cast_to)) {
             // error invalid type
             delete expr;

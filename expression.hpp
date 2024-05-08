@@ -25,7 +25,7 @@
 class Expr {
 public:
     Expr() = default;
-    Expr(Type type) : exprtype(std::move(type)) {}
+    Expr(QualType type) : exprtype(std::move(type)) {}
     Expr(const Expr&) = delete;
     Expr(Expr&&) = delete;
     virtual ~Expr() = 0;
@@ -46,11 +46,11 @@ public:
         return !exprtype.constness();
     }
 
-    Type& type() {
+    QualType& type() {
         return exprtype;
     }
 
-    const Type& type() const {
+    const QualType& type() const {
         return exprtype;
     }
 
@@ -62,14 +62,14 @@ protected:
     } typecate;
 
 private:
-    Type exprtype;
+    QualType exprtype;
 };
 
 inline Expr::~Expr() = default;
 
 class BinaryExpr : public Expr {
 public:
-    BinaryExpr(Type type, Expr* lhs, BinaryOp op, Expr* rhs) : 
+    BinaryExpr(QualType type, Expr* lhs, BinaryOp op, Expr* rhs) : 
         Expr(std::move(type)), exprs { lhs, rhs }, op(op) {}
 
     ~BinaryExpr() override { delete exprs[LHS]; delete exprs[RHS]; };
@@ -89,7 +89,7 @@ private:
 
 class UnaryExpr : public Expr {
 public:
-    UnaryExpr(Type type, UnaryOp op, Expr* expr) :
+    UnaryExpr(QualType type, UnaryOp op, Expr* expr) :
         Expr(std::move(type)), op(op), mainexpr(expr) {}
 
     ~UnaryExpr() override { delete mainexpr; };
@@ -104,7 +104,7 @@ private:
 
 class PostfixExpr : public Expr {
 public:
-    PostfixExpr(const Type& type, Expr* expr) :
+    PostfixExpr(const QualType& type, Expr* expr) :
         Expr(type), mainexpr(expr) {}
     ~PostfixExpr() override = 0;
 
@@ -119,7 +119,7 @@ inline PostfixExpr::~PostfixExpr() = default;
 
 class CallExpr : public PostfixExpr {
 public:
-    CallExpr(Type type, Expr* expr, llvm::ArrayRef<Expr*> arguments) : 
+    CallExpr(QualType type, Expr* expr, llvm::ArrayRef<Expr*> arguments) : 
         PostfixExpr(std::move(type), expr), args(arguments) {}
 
     ~CallExpr() override {
@@ -134,7 +134,7 @@ private:
 
 class IndexExpr : public PostfixExpr {
 public:
-    IndexExpr(Type type, Expr* expr, Expr* index) : 
+    IndexExpr(QualType type, Expr* expr, Expr* index) : 
         PostfixExpr(std::move(type), expr), index(index) {}
 
     ~IndexExpr() override { delete index; }
@@ -145,7 +145,7 @@ private:
 
 class CastExpr : public Expr {
 public:
-    CastExpr(Type type, Expr* expr) : Expr(std::move(type)), expr(expr) {}
+    CastExpr(QualType type, Expr* expr) : Expr(std::move(type)), expr(expr) {}
     ~CastExpr() override { delete expr; }
 
 private:
@@ -154,7 +154,7 @@ private:
 
 class IdExpr : public Expr {
 public:
-    IdExpr(Type type, std::string_view id) : 
+    IdExpr(QualType type, std::string_view id) : 
         Expr(std::move(type)), identifier(id) {}
     ~IdExpr() override = default;
 
@@ -165,14 +165,14 @@ private:
 class IntLiteralExpr : public Expr {
 public:
     IntLiteralExpr(
-        Type type, 
+        QualType type, 
         std::uint32_t numbits, 
         std::string_view literalrepr, 
         bool is_unsigned = true,
         std::uint8_t radix = 10
     ) : Expr(std::move(type)), data(llvm::APInt(numbits, literalrepr, radix), is_unsigned) {}
 
-    IntLiteralExpr(Type type, llvm::APInt data, bool is_unsigned = true) : 
+    IntLiteralExpr(QualType type, llvm::APInt data, bool is_unsigned = true) : 
         Expr(std::move(type)), data(std::move(data), is_unsigned) {}
     
     ~IntLiteralExpr() override = default;

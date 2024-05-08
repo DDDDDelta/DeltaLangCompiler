@@ -1,5 +1,21 @@
 #include "literal_support.hpp"
 
+// directly from clang::alwaysFitsInto64Bits
+static bool fits_into_64_bits(std::uint8_t radix, std::size_t numdigits) {
+    switch (radix) {
+    case 2:
+        return numdigits <= 64;
+    case 8:
+        return numdigits <= 64 / 3; // Digits are groups of 3 bits.
+    case 10:
+        return numdigits <= 19; // floor(log10(2^64))
+    case 16:
+        return numdigits <= 64 / 4; // Digits are groups of 4 bits.
+    default:
+        DELTA_UNREACHABLE("impossible radix");
+    }
+}
+
 IntLiteralParser::IntLiteralParser(std::string_view sv) : 
     begin(&sv.front()), end(&sv.back()) {
     const int prefix_size = 2;
@@ -41,21 +57,5 @@ bool IntLiteralParser::get_apint_val(llvm::APInt& val) {
 
         val = n;
         return val.getZExtValue() != n;
-    }
-}
-
-// directly from clang::alwaysFitsInto64Bits
-static bool fits_into_64_bits(std::uint8_t radix, std::size_t numdigits) {
-    switch (radix) {
-    case 2:
-        return numdigits <= 64;
-    case 8:
-        return numdigits <= 64 / 3; // Digits are groups of 3 bits.
-    case 10:
-        return numdigits <= 19; // floor(log10(2^64))
-    case 16:
-        return numdigits <= 64 / 4; // Digits are groups of 4 bits.
-    default:
-        DELTA_UNREACHABLE("impossible radix");
     }
 }

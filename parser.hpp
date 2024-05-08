@@ -22,7 +22,7 @@ public:
     }
 
 private:
-    bool type(Type&);
+    bool type(QualType&);
 
     Decl* declaration();
     Decl* variable_declaration();
@@ -44,7 +44,7 @@ private:
                 return false;
             }
 
-            Type ty;
+            QualType ty;
             if (!type(ty)) {
                 return false;
             }
