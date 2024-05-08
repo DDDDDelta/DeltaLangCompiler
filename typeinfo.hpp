@@ -102,12 +102,20 @@ public:
         return type->constness();
     }
 
+    void constness(bool b) {
+        type->constness(b);
+    }
+
     bool is_compound_ty() const {
         return isinstance<CompoundType>(*type);
     }
 
     bool is_ptr_ty() const {
         return isinstance<PtrType>(*type);
+    }
+
+    bool is_func_ty() const {
+        return isinstance<FunctionType>(type);
     }
 
     void remove_ptr() {
@@ -145,6 +153,10 @@ public:
         return lhs.compoundlv == rhs.compoundlv;
     }
 
+    std::size_t size() const {
+        return 
+    }
+
 private:
     class Type {
     public:
@@ -159,6 +171,10 @@ private:
 
         bool constness() const {
             return is_const;
+        }
+
+        void constness(bool c) {
+            is_const = c;
         }
 
         [[nodiscard]] 
@@ -211,7 +227,8 @@ private:
         }
         ~PtrType() override = default;
 
-        [[nodiscard]] Type* copy(BaseType* concty) const override {
+        [[nodiscard]] 
+        Type* copy(BaseType* concty) const override {
             return new PtrType(type_under->copy(concty), constness());
         }
 
