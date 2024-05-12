@@ -23,10 +23,17 @@ inline bool isinstance(auto&& obj) requires
     return dynamic_cast<const To*>(&obj) != nullptr;
 }
 
-template <std::ranges::input_range Range> 
-    requires std::is_pointer_v<std::ranges::range_value_t<Range>>
-void cleanup_ptrs(Range&& range) {
+template <
+    std::ranges::input_range Range, 
+    std::invocable<std::ranges::range_value_t<std::remove_cvref_t<Range>>> Deleter 
+        = std::default_delete<std::ranges::rangex_value_t<Range>>
+> requires std::is_pointer_v<std::ranges::range_value_t<Range>>
+void cleanup_ptrs(Range&& range, Deleter&& deleter = Deleter()) {
     for (auto* p : range) {
-        delete p;
+        deleter(p);
     }
 }
+
+class use_move_t {} use_move;
+
+class use_copy_t {} use_copy;

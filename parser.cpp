@@ -4,12 +4,9 @@
 
 Parser::Parser(const SourceBuffer& src) : lexer(src) {
     lexer.lex(curr_token); // must at least have an EOF token
-    bool hastwo = lexer.lex(next_token);
     
-    if (!hastwo) {
-        assert(next_token.is_one_of(TokenType::EndOfFile));
-        // TODO: error/warn empty file
-    }
+    if (curr_token.is_one_of(TokenType::EndOfFile))
+        void();// TODO: warm empty file
 }
 
 /*
@@ -111,18 +108,23 @@ bool Parser::type(QualType& newtype) {
 
     while (true) {
         if (curr_token.is_one_of(TokenType::Identifier)) {
-            BasicType* ty; // = action.get_basic_type_with_id(curr_token.get_view());
-            if (ty == nullptr) {
+            if (bool b/* = action.get_basic_qualtype(curr_token.get_view()) */) {
                 // TODO: error unrecognized basic type
                 return false;
             }
-
-            newtype.set_basic_ty(ty);
+            
             return true;
         }
         else if (curr_token.is_one_of(TokenType::Star)) {
             advance();
-            newtype.add_ptr();
+
+            bool is_const = false;
+            if (curr_token.is_one_of(TokenType::Const)) {
+                is_const = true;
+                advance();
+            }
+
+            newtype.add_ptr(is_const);
             // continue to parse compound type
         }
         else { // TODO: unrecognized token in type
@@ -246,7 +248,7 @@ Expr* Parser::integer_literal_expression() {
         using enum TokenType; 
     case HexIntLiteral: {
         posix = 16;
-        [[fallthrough]]
+        [[fallthrough]];
     case DecIntLiteral:
         QualType spectype; // = action.get_i32_ty();
 
@@ -368,8 +370,6 @@ Expr* Parser::cast_expression() {
     return expr;
 }
 
-
-
 bool Parser::advance_expected(TokenType type) {
     if (!curr_token.is_one_of(type)) {
         return false;
@@ -379,25 +379,6 @@ bool Parser::advance_expected(TokenType type) {
     return true;
 }
 
-bool Parser::advance_expected_next(TokenType type) {
-    if (!next_token.is_one_of(type)) {
-        return false;
-    }
-
-    advance_next();
-    return true;
-}
-
 void Parser::advance() {
-    curr_token = std::move(next_token);
-    lexer.lex(next_token);
-}
-
-void Parser::advance_next() {
-    lexer.lex(next_token);
-}
-
-void Parser::advance_both() {
     lexer.lex(curr_token);
-    lexer.lex(next_token);
 }

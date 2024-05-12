@@ -13,57 +13,48 @@
 
 class BasicTypeManager;
 
-class BasicType {
-public:
-    static BasicType* void_ty;
+class ASTContext;
 
-public:
-    explicit BasicType(std::string name) : name(std::move(name)) {}
-    BasicType(const BasicType&) = delete;
-    BasicType(BasicType&&) = delete;
-
-public:
-    std::string_view repr() const {
-        return name;
-    }
-
-    friend bool operator ==(const BasicType& lhs, const BasicType& rhs) = default;
-
-private:
-    std::string name;
-};
+class Type;
+class PtrType;
+class FunctionType;
+class BuiltinType;
 
 /*
- * Type -+-> CompoundType -+-> PtrType
- *       |                 +-> ArrayRefType
- *       |                 `-> ArrayType
- *       +-> BaseType
- *       `-> FunctionType
- * 
- * 
+ * TypeDeleter does not delete canonical types.
+ */
+class TypeDeleter {
+public:
+    TypeDeleter() = default;
+
+    void operator()(const Type* ty) const;
+};
+
+enum class Qualification {
+    NoQual,
+    Const,
+    N_A
+};
+
+/* 
+ * Qual(lified) Type
+ * act as a smart pointer to Type
  */
 class QualType {
-private:
-    class Type;
-    class FunctionType;
-    class PtrType;
-    class BaseType;
-
 public:
-    QualType() : type(new BaseType(BasicType::void_ty, false)), conctype((BaseType*)type) {}
+    QualType() : type(/*  */), qual(Qualification::N_A) {}
 
-    QualType(BasicType* basictype, bool constness = false) : 
-        type(new BaseType(basictype, constness)), conctype((BaseType*)type) {}
+    QualType(Type* ty);
 
-    QualType(const QualType& other) : compoundlv(other.compoundlv) {
-        conctype = new BaseType(other.conctype->basic_ty(), other.conctype->constness());
-        type = other.type->copy(conctype);
+    QualType(Type* ty, Qualification q) : 
+        type(ty), qual(q) {
+        // assumed to have the correct qualification
     }
 
-    QualType(QualType&& other) : 
-        type(other.type), conctype(other.conctype), compoundlv(other.compoundlv) {
+    QualType(const QualType& other);
+
+    QualType(QualType&& other) : type(other.type) {
         other.type = nullptr;
-        other.conctype = nullptr;
     }
 
     QualType& operator =(const QualType& rhs) {
@@ -87,183 +78,140 @@ public:
 
     void swap(QualType& other) {
         std::swap(type, other.type);
-        std::swap(conctype, other.conctype);
-        std::swap(compoundlv, other.compoundlv);
+        std::swap(qual, other.qual);
     }
 
-    ~QualType() { delete type; }
+    ~QualType() { TypeDeleter()(type); }
 
 public:
-    std::string repr() const {
-        return type->repr();
-    }
+    std::string repr() const;
 
-    bool constness() const {
-        return type->constness();
-    }
+    bool can_be_vardecl_ty() const;
+    std::size_t size() const;
+    bool is_const() const;
+    bool is_mutable() const;
+    bool is_ptr_ty() const;
+    bool is_func_ty() const;
+    bool is_void_ty() const;
+    void remove_ptr();
+    void add_ptr(bool constness = false);
 
-    void constness(bool b) {
-        type->constness(b);
-    }
-
-    bool is_compound_ty() const {
-        return isinstance<CompoundType>(*type);
-    }
-
-    bool is_ptr_ty() const {
-        return isinstance<PtrType>(*type);
-    }
-
-    bool is_func_ty() const {
-        return isinstance<FunctionType>(type);
-    }
-
-    void remove_ptr() {
-        assert(is_ptr_ty());
-        auto* garbage = type;
-
-        type = ((CompoundType*)type)->release();
-        compoundlv--;
-
-        delete garbage;
-    }
-
-    void add_ptr(bool constness = false) {
-        type = new PtrType(type, constness);
-        compoundlv++;
-    }
-
-    BasicType* get_basic_ty() const {
-        return conctype->basic_ty();
-    }
-
-    void set_basic_ty(BasicType* type) {
-        conctype->reset(type);
-    }
-
-    std::size_t get_compound_lv() const {
-        return compoundlv;
-    }
-
-    friend bool operator ==(const QualType& lhs, const QualType& rhs) {
-        if (*lhs.conctype->basic_ty() != *rhs.conctype->basic_ty())
-            return false;
-        
-        // we only have ptrty currently
-        return lhs.compoundlv == rhs.compoundlv;
-    }
-
-    std::size_t size() const {
-        return 
-    }
+    friend bool operator ==(const QualType& lhs, const QualType& rhs);
 
 private:
-    class Type {
-    public:
-        Type(bool constness) : is_const(constness) {}
-        Type(const Type&) = delete;
-        Type(Type&&) = delete;
-        virtual ~Type() = default;
-        
-        std::string repr() const {
-            return get_name() + (is_const ? " const" : "");
-        }
-
-        bool constness() const {
-            return is_const;
-        }
-
-        void constness(bool c) {
-            is_const = c;
-        }
-
-        [[nodiscard]] 
-        virtual Type* copy(BaseType* concty) const = 0;
-
-    protected:
-        virtual std::string get_name() const = 0;
-        friend class PtrType;
-
-    private:
-        bool is_const;
-    };
-
-    class CompoundType : public Type {
-    public:
-        CompoundType(Type* type, bool constness) : Type(constness), type_under(type) {}
-        ~CompoundType() override {
-            delete type_under;
-        }
-
-        Type* release() noexcept {
-            Type* ret = type_under;
-            type_under = nullptr;
-            return ret;
-        }
-
-    protected:
-        Type* type_under;
-    };
-
-    class FunctionType : public Type {
-    public:
-        FunctionType(llvm::ArrayRef<Type*> args_ty, Type* return_ty) : 
-            Type(true), args_ty(args_ty), return_ty(return_ty) {}
-        
-        ~FunctionType() override {
-            cleanup_ptrs(args_ty);
-            delete return_ty;
-        }
-
-    private:
-        llvm::SmallVector<Type*> args_ty;
-        Type* return_ty;
-    };
-
-    class PtrType : public CompoundType {
-    public:
-        PtrType(Type* type, bool constness) : CompoundType(type, constness) {
-            assert(type != nullptr);
-        }
-        ~PtrType() override = default;
-
-        [[nodiscard]] 
-        Type* copy(BaseType* concty) const override {
-            return new PtrType(type_under->copy(concty), constness());
-        }
-
-    protected:
-        std::string get_name() const override { return "*" + type_under->get_name(); }
-    };
-
-    class BaseType : public Type {
-    public:
-        BaseType(BasicType* type, bool constness) : Type(constness), type(type) {}
-        ~BaseType() override = default;
-
-        void reset(BasicType* newty) {
-            assert(newty != nullptr);
-
-            type = newty;
-        }
-
-        BasicType* basic_ty() const {
-            return type;
-        }
-
-        [[nodiscard]] Type* copy(BaseType* concty) const override {
-            return concty;
-        }
-
-    protected:
-        std::string get_name() const override { return (std::string)type->repr(); }
-
-    private:
-        BasicType* type; // do not take ownership
-    };
-
-private:
+    Qualification qual;
     Type* type;
-    BaseType* conctype;
-    std::size_t compoundlv = 0;
 };
+
+
+class Type {
+public:
+    virtual ~Type() = 0;
+
+    virtual std::string repr() const = 0;
+
+    virtual std::size_t size() const = 0;
+
+    virtual Type* copy() const = 0;
+};
+
+inline Type::~Type() = default;
+
+/* 
+ * Represents the type of a pointer.
+ * Can point to any type
+ */
+class PtrType : public Type {
+public:
+    PtrType(QualType type) : type_under(std::move(type)) {
+        assert(type != nullptr);
+    }
+    ~PtrType() override = default;
+
+    std::string repr() const override { return "*" + type_under.repr(); }
+
+    std::size_t size() const override { return 8; }
+
+    Type* copy() const override { return new PtrType(type_under); }
+
+    QualType& pointee() { return type_under; }
+    const QualType& pointee() const { return type_under; }
+
+private:
+    QualType type_under;
+};
+
+/*
+ * Represents the type of a function.
+ * FunctionType is always const. It cannot be the type of a VarDecl.
+ */
+class FunctionType : public Type {
+public:
+    FunctionType(llvm::ArrayRef<QualType> args_ty, QualType return_ty, use_copy_t = use_copy) : 
+        args_ty(args_ty), return_ty(std::move(return_ty)) {}
+
+    ~FunctionType() override = default;
+
+    std::string repr() const override {
+        std::string ret = "fn (";
+        
+        for (auto&& ty : args_ty) {
+            ret += ty.repr() + ", ";
+        }
+
+        ret += ") -> " + return_ty.repr();
+        return ret;
+    }
+
+    std::size_t size() const override { return 0; }
+
+    Type* copy() const override {
+        llvm::SmallVector<QualType> new_args_ty;
+        for (auto ty : args_ty) {
+            new_args_ty.push_back(ty);
+        }
+        return new FunctionType(new_args_ty, return_ty);
+    }
+
+private:
+    llvm::SmallVector<QualType> args_ty;
+    QualType return_ty;
+};
+
+/*
+ * Represents the builtin type of the language.
+ * Like other canonical types, its lifetime is managed by ASTContext.
+ */
+class BuiltinType : public Type {
+public:
+    enum class Kind : unsigned {
+#define BUILTIN_TYPE(ID, NAME, SIZE) ID,
+#include "builtin_type.inc"
+    };
+
+    using enum Kind;
+
+protected:
+    friend class ASTContext;
+
+    BuiltinType(Kind kind) : kind(kind) {}
+
+public:
+    ~BuiltinType() override = default;
+
+    std::string repr() const override;
+
+    std::size_t size() const override;
+
+    Kind get_kind() const { return kind; }
+
+    // BuiltinType is guarenteed to be const since all public methods are const
+    // We const_cast away the constness to keep the consistency with other Type objects
+    Type* copy() const override { return const_cast<BuiltinType*>(this); }
+
+private:
+    Kind kind;
+};
+
+std::size_t get_size(BuiltinType::Kind kind);
+std::string to_string(BuiltinType::Kind kind);

@@ -105,17 +105,12 @@ private:
 
     // TypeInfo type_info();
     bool advance_expected(TokenType type);
-    bool advance_expected_next(TokenType type);
-
-    void advance_both();
-    void advance_next();
     void advance();
 
 private:
     Lexer lexer;
 
     Token curr_token;
-    Token next_token;
 
     std::unique_ptr<Decl> decl;
 };

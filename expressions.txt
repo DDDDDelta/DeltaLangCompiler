@@ -7,7 +7,7 @@ PostfixExpression:
     PrimaryExpression
     PostFixExpression '[' Expression ']'
     PostFixExpression '(' ExpressionList ')'   (CallExpression)
-    LiteralExpression '::' Typename
+    LiteralExpression 'as' Typename
 
 UnaryExpression:
     PostfixExpression
@@ -20,7 +20,7 @@ UnaryOperator: one of
 
 CastExpression:
     UnaryExpression
-    CastExpression '::' Typename
+    CastExpression 'to' Typename
 
 MultiplicativeExpression:
     CastExprssion

@@ -22,28 +22,49 @@
 #include <string_view>
 // #include <format>
 
+enum class ValCate {
+        RValue,
+        LValue,
+        Unclassified,
+    };
+
 class Expr {
+    using enum ValCate;
+
 public:
+
     Expr() = default;
-    Expr(QualType type) : exprtype(std::move(type)) {}
+    Expr(QualType type, ValCate valcate) : exprtype(std::move(type)), valcate(valcate) {}
     Expr(const Expr&) = delete;
     Expr(Expr&&) = delete;
     virtual ~Expr() = 0;
 
     bool is_rval() const {
-        return typecate == TypeCate::RValue;
+        return valcate == RValue;
+    }
+
+    void set_rval() {
+        valcate = RValue;
     }
 
     bool is_lval() const {
-        return typecate == TypeCate::LValue;
+        return valcate == LValue;
+    }
+
+    void set_lval() {
+        valcate = LValue;
     }
 
     bool is_unclassified() const {
-        return typecate == TypeCate::Unclassified;
+        return valcate == Unclassified;
     }
 
-    bool can_modify() {
-        return !exprtype.constness();
+    void set_unclassified() {
+        valcate = Unclassified;
+    }
+
+    bool can_modify() const {
+        return exprtype.is_mutable();
     }
 
     QualType& type() {
@@ -54,23 +75,21 @@ public:
         return exprtype;
     }
 
-protected:
-    enum class TypeCate {
-        RValue,
-        LValue,
-        Unclassified,
-    } typecate;
+    void type(QualType type) {
+        exprtype = std::move(type);
+    }
 
 private:
     QualType exprtype;
+    ValCate valcate;
 };
 
 inline Expr::~Expr() = default;
 
 class BinaryExpr : public Expr {
 public:
-    BinaryExpr(QualType type, Expr* lhs, BinaryOp op, Expr* rhs) : 
-        Expr(std::move(type)), exprs { lhs, rhs }, op(op) {}
+    BinaryExpr(QualType type, ValCate valcate, Expr* lhs, BinaryOp op, Expr* rhs) : 
+        Expr(std::move(type), valcate), exprs { lhs, rhs }, op(op) {}
 
     ~BinaryExpr() override { delete exprs[LHS]; delete exprs[RHS]; };
 
@@ -89,8 +108,8 @@ private:
 
 class UnaryExpr : public Expr {
 public:
-    UnaryExpr(QualType type, UnaryOp op, Expr* expr) :
-        Expr(std::move(type)), op(op), mainexpr(expr) {}
+    UnaryExpr(QualType type, ValCate valcate, UnaryOp op, Expr* expr) :
+        Expr(std::move(type), valcate), op(op), mainexpr(expr) {}
 
     ~UnaryExpr() override { delete mainexpr; };
 
@@ -104,8 +123,8 @@ private:
 
 class PostfixExpr : public Expr {
 public:
-    PostfixExpr(const QualType& type, Expr* expr) :
-        Expr(type), mainexpr(expr) {}
+    PostfixExpr(QualType type, ValCate valcate, Expr* expr) :
+        Expr(std::move(type), valcate), mainexpr(expr) {}
     ~PostfixExpr() override = 0;
 
     Expr* expr() const { return mainexpr; }
@@ -119,13 +138,11 @@ inline PostfixExpr::~PostfixExpr() = default;
 
 class CallExpr : public PostfixExpr {
 public:
-    CallExpr(QualType type, Expr* expr, llvm::ArrayRef<Expr*> arguments) : 
-        PostfixExpr(std::move(type), expr), args(arguments) {}
+    CallExpr(QualType type, ValCate valcate, Expr* expr, llvm::ArrayRef<Expr*> arguments) : 
+        PostfixExpr(std::move(type), valcate, expr), args(arguments) {}
 
     ~CallExpr() override {
-        for (auto* arg : args) {
-            delete arg;
-        }
+        cleanup_ptrs(args);
     }
 
 private:
@@ -134,18 +151,20 @@ private:
 
 class IndexExpr : public PostfixExpr {
 public:
-    IndexExpr(QualType type, Expr* expr, Expr* index) : 
-        PostfixExpr(std::move(type), expr), index(index) {}
+    IndexExpr(QualType type, ValCate valcate, Expr* expr, Expr* index) : 
+        PostfixExpr(std::move(type), valcate, expr), index(index) {}
 
     ~IndexExpr() override { delete index; }
 
 private:
-    Expr* index = nullptr;
+    Expr* index;
 };
 
 class CastExpr : public Expr {
 public:
-    CastExpr(QualType type, Expr* expr) : Expr(std::move(type)), expr(expr) {}
+    CastExpr(QualType type, ValCate valcate, Expr* expr) : 
+        Expr(std::move(type), valcate), expr(expr) {}
+
     ~CastExpr() override { delete expr; }
 
 private:
@@ -155,7 +174,7 @@ private:
 class IdExpr : public Expr {
 public:
     IdExpr(QualType type, std::string_view id) : 
-        Expr(std::move(type)), identifier(id) {}
+        Expr(std::move(type), ValCate::LValue), identifier(id) {}
     ~IdExpr() override = default;
 
 private:
@@ -170,10 +189,11 @@ public:
         std::string_view literalrepr, 
         bool is_unsigned = true,
         std::uint8_t radix = 10
-    ) : Expr(std::move(type)), data(llvm::APInt(numbits, literalrepr, radix), is_unsigned) {}
+    ) : 
+        Expr(std::move(type), ValCate::RValue), data(llvm::APInt(numbits, literalrepr, radix), is_unsigned) {}
 
     IntLiteralExpr(QualType type, llvm::APInt data, bool is_unsigned = true) : 
-        Expr(std::move(type)), data(std::move(data), is_unsigned) {}
+        Expr(std::move(type), ValCate::RValue), data(std::move(data), is_unsigned) {}
     
     ~IntLiteralExpr() override = default;
 
