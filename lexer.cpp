@@ -375,6 +375,7 @@ bool Lexer::lex(Token& result) {
 
         switch (next) {
         case '=':
+            curr_ptr++;
             type = TokenType::GreaterEqual;
             goto SuccessEnd;
 
@@ -399,6 +400,7 @@ bool Lexer::lex(Token& result) {
 
         switch (next) {
         case '=':
+            curr_ptr++;
             type = TokenType::LessEqual;
             goto SuccessEnd;
 
