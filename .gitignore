@@ -1,5 +1,6 @@
 .vscode/
 testmain.cpp
 .idea/
+.build/
 *.o
 test/test.exe
