@@ -16,7 +16,7 @@ std::optional<BinaryOp> to_binary_operator(TokenType type) {
         return BinaryOp::And;
     case TokenType::PipePipe: 
         return BinaryOp::Or;
-    case TokenType::Equal: 
+    case TokenType::EqualEqual:
         return BinaryOp::Equal;
     case TokenType::ExclaimEqual: 
         return BinaryOp::NotEqual;
@@ -97,4 +97,14 @@ BinopPrecedence get_precedence(BinaryOp op) {
     default:
         DELTA_UNREACHABLE("logically unreachable");
     }
+}
+
+BinopPrecedence increment_precedence(BinopPrecedence precedence) {
+    int current = static_cast<int>(precedence);
+
+    if (current >= static_cast<int>(BinopPrecedence::MaxPrecedence) - 1) {
+        return BinopPrecedence::MaxPrecedence;
+    }
+
+    return static_cast<BinopPrecedence>(current + 1);
 }

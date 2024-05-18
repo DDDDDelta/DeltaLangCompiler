@@ -21,3 +21,7 @@ SourceBuffer::SourceBuffer(std::string_view path_name) : file_path(path_name) {
         buffer += c;
     }
 }
+
+SourceBuffer::SourceBuffer(std::istream& input) {
+    buffer.assign((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+}

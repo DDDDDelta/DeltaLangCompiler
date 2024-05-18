@@ -384,6 +384,25 @@ Expr* Parser::cast_expression() {
     return expr;
 }
 
+Expr* Parser::binary_expression() {
+    return recursive_parse_binary_expression(BinopPrecedence::Unknown);
+}
+
+Expr* Parser::recursive_parse_binary_expression(BinopPrecedence min_precedence) {
+    Expr* lhs = cast_expression();
+    while (true) {
+        auto opt_op = to_binary_operator(curr_token.get_type());
+        if (!opt_op) break;
+        BinopPrecedence cur_op_precedence = get_precedence(opt_op.value());
+        if (cur_op_precedence < min_precedence) break;
+        advance();
+        BinopPrecedence next_min_precedence = increment_precedence(cur_op_precedence);
+        Expr* rhs = recursive_parse_binary_expression(next_min_precedence);
+        lhs = new BinaryExpr(QualType(), ValCate::Unclassified, lhs, opt_op.value(), rhs);
+    }
+    return lhs;
+}
+
 bool Parser::advance_expected(TokenType type) {
     if (!curr_token.is_one_of(type)) {
         return false;

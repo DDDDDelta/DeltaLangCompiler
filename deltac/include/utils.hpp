@@ -30,9 +30,9 @@ void cleanup_ptrs(It begin, It end, Deleter&& deleter = Deleter()) {
     }
 }
 
-class use_move_t {} use_move;
+inline class use_move_t {} use_move;
 
-class use_copy_t {} use_copy;
+inline class use_copy_t {} use_copy;
 
 template <typename T>
 std::underlying_type_t<T> to_underlying(T e) {

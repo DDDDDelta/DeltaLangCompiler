@@ -11,6 +11,7 @@ public:
 
 public:
     explicit SourceBuffer(std::string_view path_name) noexcept(false);
+    explicit SourceBuffer(std::istream& input);
     ConstIter cbegin() const { return buffer.cbegin(); }
     ConstIter cend() const { return buffer.cend(); }
     const char* ptr_cbegin() const { return &buffer.front(); }

@@ -100,7 +100,7 @@ private:
     Expr* postfix_expression();
     Expr* unary_expression();
     Expr* cast_expression();
-    // Expr* rhs_of_binary_expression(Expr* lhs);
+    Expr* binary_expression();
 
     // TypeInfo type_info();
     bool advance_expected(TokenType type);

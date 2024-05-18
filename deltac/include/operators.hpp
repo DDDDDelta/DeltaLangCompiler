@@ -34,7 +34,7 @@ enum class BinaryOp {
 };
 
 enum class BinopPrecedence {
-    Unknown,
+    Unknown = 0,
     Or,
     And,
     BitwiseOr,
@@ -45,11 +45,13 @@ enum class BinopPrecedence {
     Shift,
     Add,
     Multiply,
+    MaxPrecedence
 };
 
 // std::strong_ordering operator <=>(BinopPrecedence lhs, BinopPrecedence rhs);
 
 BinopPrecedence get_precedence(BinaryOp op);
+BinopPrecedence increment_precedence(BinopPrecedence precedence);
 
 enum class UnaryOp {
     Plus,
