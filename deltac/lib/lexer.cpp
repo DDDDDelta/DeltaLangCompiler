@@ -1,14 +1,16 @@
 #include "lexer.hpp"
 
+namespace deltac {
+
 const KeywordTrie Lexer::kwtrie = {
-#define KEYWORD(X, Y) TokenType::X,
+#define KEYWORD(X, Y) tok::X,
 #include "tokentype.inc"
 };
 
 Lexer::Lexer(const SourceBuffer& source) : 
     buffer_start(source.ptr_cbegin()), buffer_end(source.ptr_cend()), buffer_curr(buffer_start) {}
 
-void Lexer::form_token(Token& result, const char* token_end, TokenType type) {
+void Lexer::form_token(Token& result, const char* token_end, tok::Kind type) {
     result.set_type(type);
     result.set_view(buffer_curr, token_end);
     buffer_curr = token_end;
@@ -17,7 +19,7 @@ void Lexer::form_token(Token& result, const char* token_end, TokenType type) {
 // prev_char is numeric and consumed
 bool Lexer::lex_numeric_literal(Token& result, const char* curr_ptr) {
     bool dot = false;
-    TokenType type = TokenType::DecIntLiteral;
+    tok::Kind type = tok::DecIntLiteral;
     
     while (true) {
         char digit = *curr_ptr;
@@ -32,7 +34,7 @@ bool Lexer::lex_numeric_literal(Token& result, const char* curr_ptr) {
                 break;
 
             if (digit == '.' && !dot) { // dot can only appear once in a float literal
-                type = TokenType::FloatLiteral;
+                type = tok::FloatLiteral;
                 dot = true;
 
                 curr_ptr++;
@@ -51,7 +53,7 @@ bool Lexer::lex_numeric_literal(Token& result, const char* curr_ptr) {
     }
     
     // TODO: Error invalid numeric literal
-    form_token(result, curr_ptr, TokenType::ERROR);
+    form_token(result, curr_ptr, tok::ERROR);
     return false;
 }
 
@@ -60,7 +62,7 @@ bool Lexer::lex_hex(Token& result, const char* curr_ptr) {
         char digit = *curr_ptr;
         if (!is_hex_digit(digit) && is_alphanumeric(digit)) {
             // TODO: Error invalid hexdec literal
-            form_token(result, curr_ptr, TokenType::ERROR);
+            form_token(result, curr_ptr, tok::ERROR);
             return false;
         }
         else if (is_hex_digit(digit)) {
@@ -68,7 +70,7 @@ bool Lexer::lex_hex(Token& result, const char* curr_ptr) {
             continue;
         }
         else {
-            form_token(result, curr_ptr, TokenType::HexIntLiteral);
+            form_token(result, curr_ptr, tok::HexIntLiteral);
             return true;
         }
     }
@@ -93,7 +95,7 @@ bool Lexer::lex_string_literal(Token& result, const char* curr_ptr) {
         }
     }
 
-    form_token(result, curr_ptr, TokenType::StringLiteral);
+    form_token(result, curr_ptr, tok::StringLiteral);
     return true;
 }
 
@@ -103,7 +105,7 @@ bool Lexer::lex_identifier_continue(Token& result, const char* curr_ptr) {
         curr_ptr++;
     }
 
-    form_token(result, curr_ptr, TokenType::Identifier);
+    form_token(result, curr_ptr, tok::Identifier);
     return true;
 }
 
@@ -118,7 +120,7 @@ bool Lexer::lex(Token& result) {
     // buffer_curr points to c, curr_ptr points to the next char
     char c;
     char next;
-    TokenType type;
+    tok::Kind type;
 
     // skips all the whitespaces before a token
     // buffer_curr points to the start of the token
@@ -130,11 +132,11 @@ bool Lexer::lex(Token& result) {
     switch (c) {
     case 0: // reached eof?
         if (curr_ptr == buffer_end) {
-            form_token(result, curr_ptr, TokenType::EndOfFile);
+            form_token(result, curr_ptr, tok::EndOfFile);
             return true;
         } else {
             // TODO: warn null in buffer
-            form_token(result, curr_ptr, TokenType::ERROR);
+            form_token(result, curr_ptr, tok::ERROR);
             return false;
         }
         
@@ -158,8 +160,8 @@ bool Lexer::lex(Token& result) {
         // encountered keyword or identifier
         // keywords will never start with capital letters
         curr_ptr--; // return back to the first character for trie matching
-        type = kwtrie.tok_search(curr_ptr).value_or(TokenType::Identifier);
-        if (type != TokenType::Identifier) {
+        type = kwtrie.tok_search(curr_ptr).value_or(tok::Identifier);
+        if (type != tok::Identifier) {
             break;
         }
 
@@ -175,27 +177,27 @@ bool Lexer::lex(Token& result) {
     
     // handling simple punctuations
     case '[':
-        type = TokenType::LeftSquare;
+        type = tok::LeftSquare;
         break;
 
     case ']':
-        type = TokenType::RightSquare;
+        type = tok::RightSquare;
         break;
 
     case '{':
-        type = TokenType::LeftBrace;
+        type = tok::LeftBrace;
         break;
 
     case '}':
-        type = TokenType::RightBrace;
+        type = tok::RightBrace;
         break;
 
     case '(':
-        type = TokenType::LeftParen;
+        type = tok::LeftParen;
         break;
 
     case ')':
-        type = TokenType::RightParen;
+        type = tok::RightParen;
         break;
 
     case '.': 
@@ -203,7 +205,7 @@ bool Lexer::lex(Token& result) {
         if (is_digit(next))
             // float starts with a dot, must go back to lex the dot
             return lex_numeric_literal(result, curr_ptr - 1);
-        type = TokenType::Dot;
+        type = tok::Dot;
         break;
 
     case '=':
@@ -211,15 +213,15 @@ bool Lexer::lex(Token& result) {
 
         switch (next) {
         case '>':
-            type = TokenType::EqualGreater;
+            type = tok::EqualGreater;
             break;
         
         case '=':
-            type = TokenType::EqualEqual;
+            type = tok::EqualEqual;
             break;
 
         default:
-            type = TokenType::Equal;
+            type = tok::Equal;
             goto SuccessEnd;
         }
 
@@ -231,11 +233,11 @@ bool Lexer::lex(Token& result) {
 
         if (next == '=') {
             curr_ptr++;
-            type = TokenType::PlusEqual;
+            type = tok::PlusEqual;
             break;
         }
 
-        type = TokenType::Plus;
+        type = tok::Plus;
         break;
 
     case '-':
@@ -243,15 +245,15 @@ bool Lexer::lex(Token& result) {
 
         switch (next) {
         case '>':
-            type = TokenType::MinusGreater;
+            type = tok::MinusGreater;
             break;
 
         case '=':
-            type = TokenType::MinusEqual;
+            type = tok::MinusEqual;
             break;
 
         default:
-            type = TokenType::Minus;
+            type = tok::Minus;
             goto SuccessEnd;
         }
 
@@ -263,11 +265,11 @@ bool Lexer::lex(Token& result) {
 
         if (next == '=') {
             curr_ptr++;
-            type = TokenType::StarEqual;
+            type = tok::StarEqual;
             break;
         }
 
-        type = TokenType::Star;
+        type = tok::Star;
         break;
 
     case '/':
@@ -275,11 +277,11 @@ bool Lexer::lex(Token& result) {
 
         if (next == '=') {
             curr_ptr++;
-            type = TokenType::SlashEqual;
+            type = tok::SlashEqual;
             break;
         }
 
-        type = TokenType::Slash;
+        type = tok::Slash;
         break;
 
     case '%':
@@ -287,11 +289,11 @@ bool Lexer::lex(Token& result) {
 
         if (next == '=') {
             curr_ptr++;
-            type = TokenType::PercentEqual;
+            type = tok::PercentEqual;
             break;
         }
 
-        type = TokenType::Percent;
+        type = tok::Percent;
         break;
 
     case '~':
@@ -299,11 +301,11 @@ bool Lexer::lex(Token& result) {
 
         if (next == '=') {
             curr_ptr++;
-            type = TokenType::TildeEqual;
+            type = tok::TildeEqual;
             break;
         }
 
-        type = TokenType::Tilde;
+        type = tok::Tilde;
         break;
 
     case '|':
@@ -311,15 +313,15 @@ bool Lexer::lex(Token& result) {
 
         switch (next) {
         case '|':
-            type = TokenType::PipePipe;
+            type = tok::PipePipe;
             break;
 
         case '=':
-            type = TokenType::PipeEqual;
+            type = tok::PipeEqual;
             break;
 
         default:
-            type = TokenType::Pipe;
+            type = tok::Pipe;
             goto SuccessEnd;
         }
 
@@ -331,15 +333,15 @@ bool Lexer::lex(Token& result) {
 
         switch (next) {
         case '&':
-            type = TokenType::AmpAmp;
+            type = tok::AmpAmp;
             break;
 
         case '=':
-            type = TokenType::AmpEqual;
+            type = tok::AmpEqual;
             break;
 
         default:
-            type = TokenType::Amp;
+            type = tok::Amp;
             goto SuccessEnd;
         }
 
@@ -351,11 +353,11 @@ bool Lexer::lex(Token& result) {
 
         if (next == '=') {
             curr_ptr++;
-            type = TokenType::CaretEqual;
+            type = tok::CaretEqual;
             break;
         }
 
-        type = TokenType::Caret;
+        type = tok::Caret;
         break;
 
     case '!':
@@ -363,11 +365,11 @@ bool Lexer::lex(Token& result) {
 
         if (next == '=') {
             curr_ptr++;
-            type = TokenType::ExclaimEqual;
+            type = tok::ExclaimEqual;
             break;
         }
 
-        type = TokenType::Exclaim;
+        type = tok::Exclaim;
         break;
 
     case '>':
@@ -376,7 +378,7 @@ bool Lexer::lex(Token& result) {
         switch (next) {
         case '=':
             curr_ptr++;
-            type = TokenType::GreaterEqual;
+            type = tok::GreaterEqual;
             goto SuccessEnd;
 
         case '>':
@@ -384,15 +386,15 @@ bool Lexer::lex(Token& result) {
 
             if (next == '=') {
                 curr_ptr++; // points to the next char after >>=
-                type = TokenType::GreaterGreaterEqual;
+                type = tok::GreaterGreaterEqual;
             } else {
-                type = TokenType::GreaterGreater;
+                type = tok::GreaterGreater;
             }
             
             goto SuccessEnd;
         }
 
-        type = TokenType::Greater;
+        type = tok::Greater;
         break;
 
     case '<':
@@ -401,7 +403,7 @@ bool Lexer::lex(Token& result) {
         switch (next) {
         case '=':
             curr_ptr++;
-            type = TokenType::LessEqual;
+            type = tok::LessEqual;
             goto SuccessEnd;
 
         case '<':
@@ -409,23 +411,23 @@ bool Lexer::lex(Token& result) {
 
             if (next == '=') {
                 curr_ptr++; // points to the next char after <<=
-                type = TokenType::LessLessEqual;
+                type = tok::LessLessEqual;
             } else {
-                type = TokenType::LessLess;
+                type = tok::LessLess;
             }
             
             goto SuccessEnd;
         }
 
-        type = TokenType::Less;
+        type = tok::Less;
         break;
 
     case ',':
-        type = TokenType::Comma;
+        type = tok::Comma;
         break;
 
     case ';':
-        type = TokenType::Semicolon;
+        type = tok::Semicolon;
         break;
 
     case ':':
@@ -433,11 +435,11 @@ bool Lexer::lex(Token& result) {
 
         if (next == ':') {
             curr_ptr++;
-            type = TokenType::ColonColon;
+            type = tok::ColonColon;
             break;
         }
 
-        type = TokenType::Colon;
+        type = tok::Colon;
         break;
 
     case '"':
@@ -454,7 +456,7 @@ bool Lexer::lex(Token& result) {
         }
         
         if (*curr_ptr == '\'') {
-            form_token(result, curr_ptr, TokenType::CharLiteral);
+            form_token(result, curr_ptr, tok::CharLiteral);
             return true;
         }
 
@@ -468,7 +470,7 @@ bool Lexer::lex(Token& result) {
 
     default:
         // unrecognized character or bad char literal
-        form_token(result, curr_ptr, TokenType::ERROR);
+        form_token(result, curr_ptr, tok::ERROR);
         return false;
     }
 
@@ -476,4 +478,6 @@ SuccessEnd:
     // success fully lexed a token
     form_token(result, curr_ptr, type);
     return true;
+}
+
 }

@@ -1,5 +1,7 @@
 #include "charinfo.hpp"
 
+namespace deltac {
+
 using namespace charinfo;
 
 const uint16_t charinfo::info_table[256] = {
@@ -68,3 +70,5 @@ const uint16_t charinfo::info_table[256] = {
   CHAR_LOWER  , CHAR_LOWER  , CHAR_LOWER  , CHAR_RAWDEL ,
   CHAR_RAWDEL , CHAR_RAWDEL , CHAR_RAWDEL , 0
 };
+
+}

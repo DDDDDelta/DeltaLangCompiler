@@ -2,10 +2,12 @@
 
 #include "literal_support.hpp"
 
-Parser::Parser(const SourceBuffer& src) : lexer(src) {
+namespace deltac {
+
+Parser::Parser(const SourceBuffer& src, Sema& s) : lexer(src), action(s) {
     lexer.lex(curr_token); // must at least have an EOF token
     
-    if (curr_token.is_one_of(TokenType::EndOfFile))
+    if (curr_token.is_one_of(tok::EndOfFile))
         void();// TODO: warm empty file
 }
 
@@ -15,9 +17,9 @@ Parser::Parser(const SourceBuffer& src) : lexer(src) {
  *     ;
  */
 bool Parser::parse() {
-    assert(!curr_token.is_one_of(TokenType::ERROR));
+    assert(!curr_token.is_one_of(tok::ERROR));
 
-    if (curr_token.is_one_of(TokenType::EndOfFile)) {
+    if (curr_token.is_one_of(tok::EndOfFile)) {
         // diag empty file
         return false;
     }
@@ -32,10 +34,10 @@ bool Parser::parse() {
 }
 
 Decl* Parser::declaration() {
-    if (curr_token.is_one_of(TokenType::Let)) {
+    if (curr_token.is_one_of(tok::Let)) {
         return variable_declaration();
     } 
-    else if (curr_token.is_one_of(TokenType::Fn)) {
+    else if (curr_token.is_one_of(tok::Fn)) {
         return nullptr;
     }
     else {
@@ -107,25 +109,25 @@ bool Parser::type(QualType& newtype) {
     newtype = QualType(); // reset type object just in case
 
     while (true) {
-        if (curr_token.is_one_of(TokenType::Identifier)) {
+        if (curr_token.is_one_of(tok::Identifier)) {
             bool is_const = false;
-            if (curr_token.is_one_of(TokenType::Const)) {
+            if (curr_token.is_one_of(tok::Const)) {
                 is_const = true;
                 advance();
             }
 
-            if (bool b/* = action.get_basic_qualtype(curr_token.get_view()) */) {
+            if (false/* = action.get_basic_qualtype(curr_token.get_view()) */) {
                 // TODO: error unrecognized basic type
                 return false;
             }
             
             return true;
         }
-        else if (curr_token.is_one_of(TokenType::Star)) {
+        else if (curr_token.is_one_of(tok::Star)) {
             advance();
 
             bool is_const = false;
-            if (curr_token.is_one_of(TokenType::Const)) {
+            if (curr_token.is_one_of(tok::Const)) {
                 is_const = true;
                 advance();
             }
@@ -143,7 +145,7 @@ bool Parser::type(QualType& newtype) {
 
 /*
  * ReturnStmt
- *     : 'return' Expr? ';'
+ *     : 'return' Expr[opt] ';'
  */
 /*
 ReturnStmt* Parser::return_statement() {
@@ -214,7 +216,7 @@ Expr* Parser::expression() {
  */
 Expr* Parser::primary_expression() {
     if (curr_token.is_one_of(
-        TokenType::HexIntLiteral, TokenType::DecIntLiteral
+        tok::HexIntLiteral, tok::DecIntLiteral
     )) {
         return integer_literal_expression();
     }
@@ -228,7 +230,7 @@ Expr* Parser::primary_expression() {
         return idexpr.release();
     }
     */
-    else if (curr_token.is_one_of(TokenType::LeftParen)) {
+    else if (curr_token.is_one_of(tok::LeftParen)) {
         advance();
 
         Expr* expr = expression();
@@ -236,7 +238,7 @@ Expr* Parser::primary_expression() {
             return nullptr;
         }
 
-        if (!advance_expected(TokenType::RightParen)) {
+        if (!advance_expected(tok::RightParen)) {
             delete expr;
             return nullptr;
         }
@@ -251,7 +253,7 @@ Expr* Parser::primary_expression() {
 Expr* Parser::integer_literal_expression() {
     std::uint8_t posix = 10;
     switch (curr_token.get_type()) {
-        using enum TokenType; 
+        using namespace tok; 
     case HexIntLiteral: {
         posix = 16;
         [[fallthrough]];
@@ -259,32 +261,14 @@ Expr* Parser::integer_literal_expression() {
         QualType spectype = context.get_i32_ty();
         advance();
 
-        if (next_token.is_one_of(As)) {
+        if (curr_token.is_one_of(As)) {
             advance();
             if (!type(spectype)) {
                 return nullptr;
             }
         }
 
-        if (!spectype.is_integer_ty()) {
-            // error incompatible specified type for int literal
-            return nullptr;
-        }
-
-        bool is_unsigned = spectype.is_signed(spectype);
-        auto bitwidth = (std::uint32_t)spectype.size();
-
-        IntLiteralParser literal_parser(curr_token.get_view(), posix);
-        llvm::APSInt val(bitwidth, is_unsigned);
-
-        if (literal_parser.get_apint_val(val)) {
-            // TODO: error overflow
-            return nullptr;
-        }
-
-        advance();
-
-        return new IntLiteralExpr(std::move(spectype), std::move(val));
+        return action.act_on_int_literal(curr_token, posix, &spectype);
     }
     default:
         DELTA_UNREACHABLE("must be a literal expression type token");
@@ -333,13 +317,16 @@ Expr* Parser::postfix_expression() {
  */
 Expr* Parser::unary_expression() {
     if (is_unary_operator(curr_token)) {
-
         UnaryOp op = *to_unary_operator(curr_token.get_type());
         advance();
 
-        Expr* expr = unary_expression();
-        if (!expr)
+        if (Expr* expr = unary_expression()) {
+            // act on expr
+            return action.act_on_unary_expr(op, expr);
+        }
+        else {
             return nullptr;
+        }
 
         QualType type; // = sema.unaryexpr_type(op, expr);
 
@@ -361,7 +348,7 @@ Expr* Parser::cast_expression() {
     if (!expr)
         return nullptr;
 
-    while (curr_token.is_one_of(TokenType::As)) {
+    while (curr_token.is_one_of(tok::As)) {
         advance();
 
         QualType cast_to;
@@ -385,25 +372,34 @@ Expr* Parser::cast_expression() {
 }
 
 Expr* Parser::binary_expression() {
-    return recursive_parse_binary_expression(BinopPrecedence::Unknown);
+    return recursive_parse_binary_expression(prec::Unknown);
 }
 
-Expr* Parser::recursive_parse_binary_expression(BinopPrecedence min_precedence) {
+Expr* Parser::recursive_parse_binary_expression(prec::Binary min_precedence) {
     Expr* lhs = cast_expression();
+
     while (true) {
-        auto opt_op = to_binary_operator(curr_token.get_type());
-        if (!opt_op) break;
-        BinopPrecedence cur_op_precedence = get_precedence(opt_op.value());
-        if (cur_op_precedence < min_precedence) break;
+        auto opt_op = to_binary_operator(curr_token.get_type()); // not a binary operator, binary expression ends
+        if (!opt_op) 
+            break;
+
+        prec::Binary cur_op_precedence = get_precedence(opt_op.value());
+
+        if (cur_op_precedence < min_precedence) 
+            break;
+
         advance();
-        BinopPrecedence next_min_precedence = increment_precedence(cur_op_precedence);
+
+        prec::Binary next_min_precedence = (prec::Binary)(cur_op_precedence + 1);
+
         Expr* rhs = recursive_parse_binary_expression(next_min_precedence);
-        lhs = new BinaryExpr(QualType(), ValCate::Unclassified, lhs, opt_op.value(), rhs);
+        lhs = new BinaryExpr(QualType(), Expr::Unclassified, lhs, opt_op.value(), rhs);
     }
+
     return lhs;
 }
 
-bool Parser::advance_expected(TokenType type) {
+bool Parser::advance_expected(tok::Kind type) {
     if (!curr_token.is_one_of(type)) {
         return false;
     }
@@ -414,4 +410,6 @@ bool Parser::advance_expected(TokenType type) {
 
 void Parser::advance() {
     lexer.lex(curr_token);
+}
+
 }

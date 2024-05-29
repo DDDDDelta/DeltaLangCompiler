@@ -1,42 +1,45 @@
 #include "operators.hpp"
 
-std::optional<BinaryOp> to_binary_operator(TokenType type) {
+namespace deltac {
+
+std::optional<BinaryOp> to_binary_operator(tok::Kind type) {
     switch (type) {
-    case TokenType::Plus: 
+        using namespace tok;
+    case Plus: 
         return BinaryOp::Plus;
-    case TokenType::Minus: 
+    case Minus: 
         return BinaryOp::Minus;
-    case TokenType::Star: 
+    case Star: 
         return BinaryOp::Multiply;
-    case TokenType::Slash: 
+    case Slash: 
         return BinaryOp::Divide;
-    case TokenType::Percent: 
+    case Percent: 
         return BinaryOp::Modulo;
-    case TokenType::AmpAmp: 
+    case AmpAmp: 
         return BinaryOp::And;
-    case TokenType::PipePipe: 
+    case PipePipe: 
         return BinaryOp::Or;
-    case TokenType::EqualEqual:
+    case EqualEqual:
         return BinaryOp::Equal;
-    case TokenType::ExclaimEqual: 
+    case ExclaimEqual: 
         return BinaryOp::NotEqual;
-    case TokenType::Less:  
+    case Less:  
         return BinaryOp::Less;
-    case TokenType::Greater: 
+    case Greater: 
         return BinaryOp::Greater;
-    case TokenType::LessEqual: 
+    case LessEqual: 
         return BinaryOp::LessEqual;
-    case TokenType::GreaterEqual: 
+    case GreaterEqual: 
         return BinaryOp::GreaterEqual;
-    case TokenType::LessLess: 
+    case LessLess: 
         return BinaryOp::LeftShift;
-    case TokenType::GreaterGreater: 
+    case GreaterGreater: 
         return BinaryOp::RightShift;
-    case TokenType::Amp: 
+    case Amp: 
         return BinaryOp::BitwiseAnd;
-    case TokenType::Pipe: 
+    case Pipe: 
         return BinaryOp::BitwiseOr;
-    case TokenType::Caret: 
+    case Caret: 
         return BinaryOp::BitwiseXor;
     default: // suppress warning
         break;
@@ -45,66 +48,60 @@ std::optional<BinaryOp> to_binary_operator(TokenType type) {
     return std::nullopt;
 }
 
-std::optional<UnaryOp> to_unary_operator(TokenType type) {
+std::optional<UnaryOp> to_unary_operator(tok::Kind type) {
+    using namespace tok;
     switch (type) {
-    case TokenType::Plus: 
+    case Plus: 
         return UnaryOp::Plus;
-    case TokenType::Minus: 
+    case Minus: 
         return UnaryOp::Minus;
-    case TokenType::Exclaim: 
+    case Exclaim: 
         return UnaryOp::Not;
-    default: // suppress warning
-        break;
+    case Tilde:
+        return UnaryOp::BitwiseNot;
+    case Star:
+        return UnaryOp::Deref;
+    case Amp:
+        return UnaryOp::AddressOf;
+    default:
+        return std::nullopt;
     }
-
-    return std::nullopt;
 }
 
-std::strong_ordering operator <=>(BinopPrecedence lhs, BinopPrecedence rhs) {
-    return std::to_underlying(lhs) <=> std::to_underlying(rhs);
-}
-
-BinopPrecedence get_precedence(BinaryOp op) {
+prec::Binary get_precedence(BinaryOp op) {
+    using namespace prec;
     switch (op) {
     case BinaryOp::Or:
-        return BinopPrecedence::Or;
+        return Or;
     case BinaryOp::And:
-        return BinopPrecedence::And;
+        return And;
     case BinaryOp::BitwiseOr:
-        return BinopPrecedence::BitwiseOr;
+        return BitwiseOr;
     case BinaryOp::BitwiseXor:
-        return BinopPrecedence::BitwiseXor;
+        return BitwiseXor;
     case BinaryOp::BitwiseAnd:
-        return BinopPrecedence::BitwiseAnd;
+        return BitwiseAnd;
     case BinaryOp::Equal:
     case BinaryOp::NotEqual:
-        return BinopPrecedence::Equality;
+        return Equality;
     case BinaryOp::Less:
     case BinaryOp::Greater:
     case BinaryOp::LessEqual:
     case BinaryOp::GreaterEqual:
-        return BinopPrecedence::Relational;
+        return Relational;
     case BinaryOp::LeftShift:
     case BinaryOp::RightShift:
-        return BinopPrecedence::Shift;
+        return Shift;
     case BinaryOp::Plus:
     case BinaryOp::Minus:
-        return BinopPrecedence::Add;
+        return Add;
     case BinaryOp::Multiply:
     case BinaryOp::Divide:
     case BinaryOp::Modulo:
-        return BinopPrecedence::Multiply;
+        return Multiply;
     default:
         DELTA_UNREACHABLE("logically unreachable");
     }
 }
 
-BinopPrecedence increment_precedence(BinopPrecedence precedence) {
-    int current = static_cast<int>(precedence);
-
-    if (current >= static_cast<int>(BinopPrecedence::MaxPrecedence) - 1) {
-        return BinopPrecedence::MaxPrecedence;
-    }
-
-    return static_cast<BinopPrecedence>(current + 1);
 }

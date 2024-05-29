@@ -6,6 +6,8 @@
 #include "token.hpp"
 #include "tokentype.hpp"
 
+namespace deltac {
+
 enum class PostfixOp {
     Call,
     Index,
@@ -33,7 +35,8 @@ enum class BinaryOp {
     BitwiseXor,
 };
 
-enum class BinopPrecedence {
+namespace prec {
+enum Binary {
     Unknown = 0,
     Or,
     And,
@@ -47,11 +50,11 @@ enum class BinopPrecedence {
     Multiply,
     MaxPrecedence
 };
+}
 
 // std::strong_ordering operator <=>(BinopPrecedence lhs, BinopPrecedence rhs);
 
-BinopPrecedence get_precedence(BinaryOp op);
-BinopPrecedence increment_precedence(BinopPrecedence precedence);
+prec::Binary get_precedence(BinaryOp op);
 
 enum class UnaryOp {
     Plus,
@@ -62,14 +65,16 @@ enum class UnaryOp {
     AddressOf,
 };
 
-std::optional<BinaryOp> to_binary_operator(TokenType type);
+std::optional<BinaryOp> to_binary_operator(tok::Kind type);
 
 inline bool is_binary_operator(const Token& tk) {
     return to_binary_operator(tk.get_type()).has_value();
 }
 
-std::optional<UnaryOp> to_unary_operator(TokenType type);
+std::optional<UnaryOp> to_unary_operator(tok::Kind type);
 
 inline bool is_unary_operator(const Token& tk) {
     return to_unary_operator(tk.get_type()).has_value();
+}
+
 }

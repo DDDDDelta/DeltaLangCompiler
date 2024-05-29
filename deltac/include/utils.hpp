@@ -4,11 +4,21 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <string_view>
 #include <memory>
 
 #define DELTA_UNREACHABLE(MSG) (assert(false && MSG && "unreachable"), __builtin_unreachable())
 
-namespace util {
+
+namespace deltac::util {
+
+template <class T>
+struct remove_cvref {
+    using type = std::remove_cv_t<std::remove_reference_t<T>>;
+};
+
+template <class T>
+using remove_cvref_t = typename remove_cvref<T>::type;
 
 template <typename To, typename From>
 inline bool isinstance(From* ptr) {
@@ -39,4 +49,18 @@ std::underlying_type_t<T> to_underlying(T e) {
     return static_cast<std::underlying_type_t<T>>(e);
 }
 
+template <typename CharT, class Traits = std::char_traits<CharT>>
+constexpr std::basic_string_view<CharT, Traits> make_sv(const CharT* begin, const CharT* end) {
+    return { begin, (std::size_t)(end - begin) };
 }
+
+template <
+    typename It, 
+    typename CharT = remove_cvref_t<decltype(*It())>, 
+    typename Traits = std::char_traits<CharT>
+>
+constexpr std::basic_string_view<CharT, Traits> make_sv(It begin, It end) {
+    return { &*begin, (std::size_t)(end - begin) };
+}
+
+} // namespace util

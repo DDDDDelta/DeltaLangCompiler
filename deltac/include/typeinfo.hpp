@@ -10,6 +10,8 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+namespace deltac {
+
 class BasicTypeManager;
 
 class ASTContext;
@@ -26,34 +28,55 @@ class TypeDeleter {
 public:
     TypeDeleter() = default;
 
-    void operator()(const Type* ty) const;
+    void operator ()(const Type* ty) const;
 };
 
-enum class Qualification {
+namespace qual {
+
+enum Qual {
     NoQual,
     Const,
     N_A
 };
 
+}
+
 /* 
  * Qual(lified) Type
- * act as a smart pointer to Type
+ * act as a smart pointer to Type and stores qualification info outside type
  */
 class QualType {
 public:
-    QualType() : type(/*  */), qual(Qualification::N_A) {}
+    QualType() : type(/*  */), qualification(qual::N_A) {}
 
     QualType(Type* ty);
 
-    QualType(Type* ty, Qualification q) : 
-        type(ty), qual(q) {
+    QualType(Type* ty, qual::Qual q) : 
+        type(ty), qualification(q) {
         // assumed to have the correct qualification
     }
 
     QualType(const QualType& other);
 
-    QualType(QualType&& other) : type(other.type) {
+    QualType(QualType&& other) : type(other.type), qualification(other.qualification) {
         other.type = nullptr;
+    }
+
+    static QualType make_ptr_ty(QualType ty, bool constness = false) {
+        ty.add_ptr(constness);
+        return ty;
+    }
+
+    static QualType make_no_qual_ty(QualType ty) {
+        ty.qualification = qual::NoQual;
+        return ty;
+    }
+
+    static QualType make_remove_ptr_ty(QualType ty) {
+        assert(ty.is_ptr_ty());
+        
+        ty.remove_ptr();
+        return ty;
     }
 
     QualType& operator =(const QualType& rhs) {
@@ -77,7 +100,7 @@ public:
 
     void swap(QualType& other) {
         std::swap(type, other.type);
-        std::swap(qual, other.qual);
+        std::swap(qualification, other.qualification);
     }
 
     ~QualType() { TypeDeleter()(type); }
@@ -95,11 +118,15 @@ public:
 
     bool is_ptr_ty() const;
 
+    bool is_builtin_ty() const;
+
     bool is_func_ty() const;
 
     bool is_void_ty() const;
 
     void remove_ptr();
+
+    void remove_const();
 
     void add_ptr(bool constness = false);
 
@@ -109,16 +136,24 @@ public:
 
     bool is_integer_ty() const;
 
+    bool is_float_ty() const;
+
+    bool is_bool_ty() const;
+
     friend bool operator ==(const QualType& lhs, const QualType& rhs);
 
 private:
-    Qualification qual;
+    qual::Qual qualification;
     Type* type;
 };
 
 
 class Type {
 public:
+    Type() = default;
+    Type(const Type&) = delete;
+    Type(Type&&) = delete;
+    
     virtual ~Type() = 0;
 
     virtual std::string repr() const = 0;
@@ -136,9 +171,7 @@ inline Type::~Type() = default;
  */
 class PtrType : public Type {
 public:
-    PtrType(QualType type) : type_under(std::move(type)) {
-        assert(type != nullptr);
-    }
+    PtrType(QualType type) : type_under(std::move(type)) {}
     ~PtrType() override = default;
 
     std::string repr() const override { return "*" + type_under.repr(); }
@@ -160,7 +193,7 @@ private:
  */
 class FunctionType : public Type {
 public:
-    FunctionType(llvm::ArrayRef<QualType> args_ty, QualType return_ty, use_copy_t = use_copy) : 
+    FunctionType(llvm::ArrayRef<QualType> args_ty, QualType return_ty, util::use_copy_t = util::use_copy) : 
         args_ty(args_ty), return_ty(std::move(return_ty)) {}
 
     ~FunctionType() override = default;
@@ -197,12 +230,10 @@ private:
  */
 class BuiltinType : public Type {
 public:
-    enum class Kind : unsigned {
+    enum Kind : unsigned {
 #define BUILTIN_TYPE(ID, NAME, SIZE) ID,
 #include "builtin_type.inc"
     };
-
-    using enum Kind;
 
 protected:
     friend class ASTContext;
@@ -235,3 +266,5 @@ bool is_signed(BuiltinType::Kind kind);
 bool is_unsigned(BuiltinType::Kind kind);
 
 bool is_integer(BuiltinType::Kind kind);
+
+}

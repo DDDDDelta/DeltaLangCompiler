@@ -6,12 +6,14 @@
 
 #include <iostream>
 
-KeywordTrie::KeywordTrie(std::initializer_list<TokenType> types) {
-    for (TokenType t : types)
+namespace deltac {
+
+KeywordTrie::KeywordTrie(std::initializer_list<tok::Kind> types) {
+    for (tok::Kind t : types)
         _insert_tok(t);
 }
 
-KeywordTrie& KeywordTrie::_insert_tok(TokenType tkt) {
+KeywordTrie& KeywordTrie::_insert_tok(tok::Kind tkt) {
     TrieNode* node = &_root;
     for (char c : token_type_name(tkt)) {
         int index = _get_index(c);
@@ -24,7 +26,7 @@ KeywordTrie& KeywordTrie::_insert_tok(TokenType tkt) {
     return *this;
 }
 
-std::optional<TokenType> KeywordTrie::tok_search(const char*& key) const {
+std::optional<tok::Kind> KeywordTrie::tok_search(const char*& key) const {
     const TrieNode* node = &_root;
 
     while (*key) {
@@ -47,9 +49,11 @@ std::optional<TokenType> KeywordTrie::tok_search(const char*& key) const {
         key++;
     }
 
-    if (!node || node->token == TokenType::ERROR) {
+    if (!node || node->token == tok::ERROR) {
         return std::nullopt;
     } else {
         return node->token;
     }
+}
+
 }

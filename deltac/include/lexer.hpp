@@ -10,6 +10,8 @@
 #include <utility>
 #include <cassert>
 
+namespace deltac {
+
 class Lexer {
 public:
     explicit Lexer(const SourceBuffer& source);
@@ -24,7 +26,7 @@ private:
     static const KeywordTrie kwtrie;
 
 private:
-    void form_token(Token& result, const char* token_end, TokenType type);
+    void form_token(Token& result, const char* token_end, tok::Kind type);
 
     bool lex_numeric_literal(Token& result, const char* curr_ptr);
     bool lex_hex(Token& result, const char* curr_ptr);
@@ -42,3 +44,5 @@ private:
 
     // friend int main();
 };
+
+}

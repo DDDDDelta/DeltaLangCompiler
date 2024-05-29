@@ -5,15 +5,17 @@
 #include <string_view>
 #include <filesystem>
 
+namespace deltac {
+
 class SourceBuffer {
 public:
-    using ConstIter = std::string::const_iterator;
+    using const_iterator = std::string::const_iterator;
 
 public:
     explicit SourceBuffer(std::string_view path_name) noexcept(false);
     explicit SourceBuffer(std::istream& input);
-    ConstIter cbegin() const { return buffer.cbegin(); }
-    ConstIter cend() const { return buffer.cend(); }
+    const_iterator cbegin() const { return buffer.cbegin(); }
+    const_iterator cend() const { return buffer.cend(); }
     const char* ptr_cbegin() const { return &buffer.front(); }
     // points the the next position passing null terminate character
     const char* ptr_cend() const { return &buffer.back() + 2; }
@@ -24,3 +26,5 @@ private:
     std::string buffer;
     std::filesystem::path file_path;
 };
+
+}

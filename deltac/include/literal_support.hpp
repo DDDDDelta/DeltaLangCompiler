@@ -7,6 +7,8 @@
 
 #include <string_view>
 
+namespace deltac {
+
 // This class is inspired by clang::NumericLiteralParser
 class IntLiteralParser {
 public:
@@ -24,7 +26,7 @@ public:
     /// Get the digits that comprise the literal. This excludes any prefix or
     /// suffix associated with the literal.
     std::string_view get_digits() const {
-        return { digit_begin, digit_begin - end };
+        return util::make_sv(digit_begin, end);
     }
 
 private:
@@ -37,3 +39,5 @@ private:
 
     std::uint8_t radix;
 };
+
+}

@@ -7,14 +7,22 @@
 #include "token.hpp"
 #include "lexer.hpp"
 #include "utils.hpp"
+#include "astcontext.hpp"
+#include "sema.hpp"
 
 #include <ranges>
 #include <memory>
 #include <iterator>
 
+namespace deltac {
+
 class Parser {
 public:
-    explicit Parser(const SourceBuffer& src);
+    Parser(const SourceBuffer& src, Sema& s);
+
+    Parser(const Parser&) = delete;
+    Parser(Parser&&) = delete;
+
     bool parse();
 
     Decl* release_decl() {
@@ -29,17 +37,17 @@ private:
 
     template <typename Container>
     bool parameter_list(std::back_insert_iterator<Container> out) {
-        if (!advance_expected(TokenType::LeftParen))
+        if (!advance_expected(tok::LeftParen))
             return false;
 
         while (true) {
-            if (!curr_token.is_one_of(TokenType::Identifier)) {
+            if (!curr_token.is_one_of(tok::Identifier)) {
                 return false;
             }
 
             std::string_view identifier = curr_token.get_view();
             advance();
-            if (!advance_expected(TokenType::Colon)) {
+            if (!advance_expected(tok::Colon)) {
                 return false;
             }
 
@@ -48,12 +56,12 @@ private:
                 return false;
             }
 
-            out = (Parameter) { (std::string)identifier, std::move(ty) };
+            out = Parameter((std::string)identifier, std::move(ty));
 
-            if (curr_token.is_one_of(TokenType::Comma)) { // next parameter
+            if (curr_token.is_one_of(tok::Comma)) { // next parameter
                 continue;
             }
-            else if (curr_token.is_one_of(TokenType::RightParen)) { // end of list
+            else if (curr_token.is_one_of(tok::RightParen)) { // end of list
                 break;
             }
             else { // diag unrecognized token after type
@@ -74,8 +82,8 @@ private:
     template <typename Container>
     bool expression_list(
         std::back_insert_iterator<Container> out, 
-        TokenType start_token, 
-        TokenType end_token
+        tok::Kind start_token, 
+        tok::Kind end_token
     ) {
         if (!advance_expected(start_token)) {
             return false;
@@ -101,16 +109,19 @@ private:
     Expr* unary_expression();
     Expr* cast_expression();
     Expr* binary_expression();
+    Expr* recursive_parse_binary_expression(prec::Binary);
 
     // TypeInfo type_info();
-    bool advance_expected(TokenType type);
+    bool advance_expected(tok::Kind type);
     void advance();
 
 private:
     Lexer lexer;
-    ASTContext& context;
+    Sema& action;
 
     Token curr_token;
 
     std::unique_ptr<Decl> decl;
 };
+
+} // namespace deltac

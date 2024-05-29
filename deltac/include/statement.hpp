@@ -9,6 +9,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 
+namespace deltac {
+
 class Stmt {
 public:
     virtual ~Stmt() = 0;
@@ -27,7 +29,7 @@ private:
     llvm::SmallVector<Stmt*> stmtlist;
 };
 
-
+} // namespace deltac
 
 /*
 template <typename FormatContext>

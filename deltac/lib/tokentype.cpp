@@ -1,5 +1,7 @@
 #include "tokentype.hpp"
 
+namespace deltac {
+
 static constexpr std::string_view token_name[] = {
 #define TOK(X) #X,
 #define PUNCTUATOR(X, Y) Y,
@@ -12,10 +14,12 @@ static constexpr std::string_view token_enum_name[] = {
 #include "tokentype.inc"
 };
 
-std::string_view token_type_name(TokenType tkt) {
-    return token_name[std::to_underlying(tkt)];
+std::string_view token_type_name(tok::Kind tkt) {
+    return token_name[tkt];
 }
 
-std::string_view token_type_enum_name(TokenType tkt) {
-    return token_enum_name[std::to_underlying(tkt)];
+std::string_view token_type_enum_name(tok::Kind tkt) {
+    return token_enum_name[tkt];
+}
+
 }

@@ -11,8 +11,8 @@
 #endif
 
 BUILTIN_TYPE(Void, void, 0)
+BUILTIN_TYPE(Bool, bool, 1)
 
-SIGNED_TYPE(Bool, bool, 1) // bool is represented by i1 in llvm which is signed
 SIGNED_TYPE(I8, i8, 1)
 SIGNED_TYPE(I16, i16, 2)
 SIGNED_TYPE(I32, i32, 4)

@@ -22,17 +22,17 @@
 #include <string_view>
 // #include <format>
 
-enum class ValCate {
-    RValue,
-    LValue,
-    Unclassified,
-};
+namespace deltac {
 
 class Expr {
-    using enum ValCate;
+public:
+    enum ValCate {
+        RValue,
+        LValue,
+        Unclassified,
+    };
 
 public:
-
     Expr() = default;
     Expr(QualType type, ValCate valcate) : exprtype(std::move(type)), valcate(valcate) {}
     Expr(const Expr&) = delete;
@@ -75,20 +75,16 @@ public:
         return exprtype;
     }
 
-    void type(QualType type) {
-        exprtype = std::move(type);
-    }
-
 private:
     QualType exprtype;
-    ValCate valcate;
+    ValCate valcate = Unclassified;
 };
 
 inline Expr::~Expr() = default;
 
 class BinaryExpr : public Expr {
 public:
-    BinaryExpr(QualType type, ValCate valcate, Expr* lhs, BinaryOp op, Expr* rhs) : 
+    BinaryExpr(QualType type, Expr::ValCate valcate, Expr* lhs, BinaryOp op, Expr* rhs) : 
         Expr(std::move(type), valcate), exprs { lhs, rhs }, op(op) {}
 
     ~BinaryExpr() override { delete exprs[LHS]; delete exprs[RHS]; };
@@ -160,15 +156,74 @@ private:
     Expr* index;
 };
 
-class CastExpr : public Expr {
+class CastExpr : public Expr { // currently only consists of implicit casts
 public:
-    CastExpr(QualType type, ValCate valcate, Expr* expr) : 
-        Expr(std::move(type), valcate), expr(expr) {}
+    CastExpr(Expr* e) : 
+        Expr(e->type(), RValue), expr(e) {}
 
     ~CastExpr() override { delete expr; }
 
 private:
     Expr* expr;
+};
+
+class ImplicitCastExpr : public Expr {
+public:
+    enum Kind {
+        LValCast,
+        FnToPtr,
+        IntCast,
+        BoolCast,
+        IntToFloat,
+        IntToBool,
+        IntToFloat,
+    };
+
+public:
+    static ImplicitCastExpr* new_lval_cast(Expr* expr) {
+        return new ImplicitCastExpr(QualType::make_no_qual_ty(expr->type()), expr, LValCast);
+    }
+
+    static ImplicitCastExpr* new_fn_to_ptr_cast(Expr* expr) {
+        return new ImplicitCastExpr(QualType::make_ptr_ty(expr->type()), expr, FnToPtr);
+    }
+
+    static ImplicitCastExpr* new_int_cast(Expr* expr, QualType to) {
+        assert(to.is_integer_ty());
+
+        return new ImplicitCastExpr(std::move(to), expr, IntCast);
+    }
+
+    static ImplicitCastExpr* new_int_to_float_cast(Expr* expr, QualType to) {
+        assert(to.is_float_ty());
+
+        return new ImplicitCastExpr(std::move(to), expr, IntToFloat);
+    }
+
+    static ImplicitCastExpr* new_bool_cast(Expr* expr, QualType to) {
+        assert(to.is_bool_ty());
+
+        return new ImplicitCastExpr(std::move(to), expr, BoolCast);
+    }
+
+protected:
+    explicit ImplicitCastExpr(QualType t, Expr* expr, Kind k) : Expr(std::move(t), RValue), expr(expr), kind(k) {}
+
+public:
+
+    ~ImplicitCastExpr() override { delete expr; }
+
+    std::pair<QualType, QualType> cast_types() const {
+        return { expr->type(), this->type() };
+    }
+
+    bool is_lval_to_rval() const { return kind == LValCast; }
+
+    Kind cast_kind() const { return kind; }
+
+private:
+    Expr* expr;
+    Kind kind;
 };
 
 class IdExpr : public Expr {
@@ -190,10 +245,10 @@ public:
         bool is_unsigned = true,
         std::uint8_t radix = 10
     ) : 
-        Expr(std::move(type), ValCate::RValue), data(llvm::APInt(numbits, literalrepr, radix), is_unsigned) {}
+        Expr(std::move(type), RValue), data(llvm::APInt(numbits, literalrepr, radix), is_unsigned) {}
 
-    IntLiteralExpr(QualType type, llvm::APInt data, bool is_unsigned = true) : 
-        Expr(std::move(type), ValCate::RValue), data(std::move(data), is_unsigned) {}
+    IntLiteralExpr(QualType type, llvm::APSInt data, bool is_unsigned = true) : 
+        Expr(std::move(type), RValue), data(std::move(data), is_unsigned) {}
     
     ~IntLiteralExpr() override = default;
 
@@ -212,6 +267,8 @@ public:
 private:
     Expr* expr;
 };
+
+}
 
 /*
 

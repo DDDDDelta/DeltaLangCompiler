@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+namespace deltac {
+
 namespace charinfo {
 extern const std::uint16_t info_table[256];
 
@@ -108,4 +110,6 @@ inline bool is_printable(unsigned char c) {
     using namespace charinfo;
     return (info_table[c] & (CHAR_UPPER | CHAR_LOWER | CHAR_PERIOD | CHAR_PUNCT |
                             CHAR_DIGIT | CHAR_UNDER | CHAR_RAWDEL | CHAR_SPACE)) != 0;
+}
+
 }

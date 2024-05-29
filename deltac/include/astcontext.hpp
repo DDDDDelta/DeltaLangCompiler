@@ -2,6 +2,8 @@
 
 #include <vector>
 
+namespace deltac {
+
 class LookupResult {
 public:
     LookupResult(Decl* decl) : decl(decl) {}
@@ -68,9 +70,21 @@ public:
 
 public:
     QualType get_i32_ty(bool is_const = false) const;
+    QualType get_int_ty_from_size(std::uint32_t bitwidth, bool is_signed, bool is_const = false) const;
+    QualType get_bool_ty(bool is_const = false) const;
+    QualType get_void_ty() const;
+    QualType get_void_ptr_ty(bool is_const = false) const;
+
+private:
+    static BuiltinType builtin_types[];
+
+    static BuiltinType* get_builtin_type(BuiltinType::Kind kind) {
+        return &builtin_types[kind];
+    }
 
 private:
     std::vector<VarDecl*> global_vardecls;
-
+    std::vector<FuncDecl*> global_funcdecls;
 };
 
+} // namespace deltac

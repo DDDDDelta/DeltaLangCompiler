@@ -9,13 +9,15 @@
 #include <string>
 #include <optional>
 
+namespace deltac {
+
 class KeywordTrie {
 private:
     static constexpr int ALPHABET_SIZE = 26;
 
     struct TrieNode {
         std::array<TrieNode*, ALPHABET_SIZE> children;
-        TokenType token = TokenType::ERROR;
+        tok::Kind token = tok::ERROR;
 
         TrieNode() {
             for (auto& child : children) {
@@ -31,9 +33,9 @@ private:
     };
 
 public:
-    KeywordTrie(std::initializer_list<TokenType>);
+    KeywordTrie(std::initializer_list<tok::Kind>);
 
-    std::optional<TokenType> tok_search(const char*& key) const;
+    std::optional<tok::Kind> tok_search(const char*& key) const;
 
 private:
     static constexpr int _get_index(char c) {
@@ -42,5 +44,7 @@ private:
 
 private:
     TrieNode _root;
-    KeywordTrie& _insert_tok(TokenType tkt);
+    KeywordTrie& _insert_tok(tok::Kind tkt);
 };
+
+}

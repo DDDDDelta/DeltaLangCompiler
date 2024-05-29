@@ -1,5 +1,7 @@
 #include "literal_support.hpp"
 
+namespace deltac {
+
 // directly from clang::alwaysFitsInto64Bits
 static bool fits_into_64_bits(std::uint8_t radix, std::size_t numdigits) {
     switch (radix) {
@@ -58,4 +60,6 @@ bool IntLiteralParser::get_apint_val(llvm::APInt& val) {
         val = n;
         return val.getZExtValue() != n;
     }
+}
+
 }

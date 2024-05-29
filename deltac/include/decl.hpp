@@ -6,18 +6,29 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include <optional>
+#include <string>
+#include <utility>
+
+namespace deltac {
 
 class Decl {
 public:
-    Decl(std::string identifier) :
-        identifier(std::move(identifier)) {}
-    
-    Decl(const Decl&) = delete;
-    Decl(Decl&&) = delete;
+    Decl() = default;
     virtual ~Decl() = 0;
 
     virtual std::string get_decl_repr() = 0;
-    virtual bool has_body() = 0;
+};
+
+class NamedDecl : public Decl {
+public:
+    NamedDecl(std::string identifier) :
+        identifier(std::move(identifier)) {}
+    
+    NamedDecl(const Decl&) = delete;
+    NamedDecl(Decl&&) = delete;
+    virtual ~NamedDecl() = 0;
+
+    virtual std::string get_decl_repr() = 0;
 
     std::string_view get_identifier() { return identifier; }
 
@@ -27,16 +38,13 @@ private:
 
 inline Decl::~Decl() = default;
 
-class VarDecl : public Decl {
+class VarDecl : public NamedDecl {
 public:
     VarDecl(std::string identifier, Expr* expr) : 
-        Decl(std::move(identifier)), type(expr->type()), expr(expr) {}
+        NamedDecl(std::move(identifier)), type(expr->type()), expr(expr) {}
 
-    VarDecl(std::string identifier, QualType type) : 
-        Decl(std::move(identifier)), type(std::move(type)), expr(nullptr) {}
-
-    VarDecl(std::string identifier, QualType type, Expr* expr) : 
-        Decl(std::move(identifier)), type(std::move(type)), expr(expr) {}
+    VarDecl(std::string identifier, QualType type, Expr* expr = nullptr) : 
+        NamedDecl(std::move(identifier)), type(std::move(type)), expr(expr) {}
 
     ~VarDecl() override = default;
 
@@ -49,17 +57,17 @@ public:
             ";";
     }
 
-    const QualType& decl_type() { return type; }
+    const QualType& decl_type() const { return type; }
     void decl_type(QualType type) { this->type = std::move(type); }
 
     Expr* get_expr() { return expr; }
     
     void reset_expr(Expr* e = nullptr) { 
         delete expr;
-        this->expr = e; 
+        this->expr = e;
     }
 
-    bool has_body() override { return expr != nullptr; }
+    bool has_body() const { return expr != nullptr; }
 
 private:
     QualType type;
@@ -71,6 +79,8 @@ struct Parameter {
     QualType type;
 };
 
-class FunctionDecl;
+class FuncDecl;
 
 class TypeDecl;
+
+} // namespace deltac
