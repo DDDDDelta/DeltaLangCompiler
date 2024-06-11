@@ -4,7 +4,9 @@
 
 namespace deltac {
 
-TypeBuilder::TypeBuilder(Sema& action) : action(action) {}
+TypeBuilder::TypeBuilder(Sema& action) : res(action.context.get_void_ty()), action(action) {}
+
+
 
 Expr* Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty) {
     if (ty != nullptr && !ty->is_integer_ty()) {

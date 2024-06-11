@@ -47,8 +47,6 @@ enum Qual {
  */
 class QualType {
 public:
-    QualType() : type(/*  */), qualification(qual::N_A) {}
-
     QualType(Type* ty);
 
     QualType(Type* ty, qual::Qual q) : 

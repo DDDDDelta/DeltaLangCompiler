@@ -11,10 +11,10 @@ namespace deltac {
 
 class Token {
 public:
-    bool is_one_of(tok::Kind type1) const { return type == type1; }
+    bool is(tok::Kind type1) const { return type == type1; }
     template <typename... Ts>
     bool is_one_of(tok::Kind type, Ts... types) const {
-        return is_one_of(type) || is_one_of(types...);
+        return (is(type) || ...);
     }
 
     void concat(const Token& other) {

@@ -7,7 +7,7 @@ namespace deltac {
 Parser::Parser(const SourceBuffer& src, Sema& s) : lexer(src), action(s) {
     lexer.lex(curr_token); // must at least have an EOF token
     
-    if (curr_token.is_one_of(tok::EndOfFile))
+    if (curr_token.is(tok::EndOfFile))
         void();// TODO: warm empty file
 }
 
@@ -17,9 +17,9 @@ Parser::Parser(const SourceBuffer& src, Sema& s) : lexer(src), action(s) {
  *     ;
  */
 bool Parser::parse() {
-    assert(!curr_token.is_one_of(tok::ERROR));
+    assert(!curr_token.is(tok::ERROR));
 
-    if (curr_token.is_one_of(tok::EndOfFile)) {
+    if (curr_token.is(tok::EndOfFile)) {
         // diag empty file
         return false;
     }
@@ -34,10 +34,10 @@ bool Parser::parse() {
 }
 
 Decl* Parser::declaration() {
-    if (curr_token.is_one_of(tok::Let)) {
+    if (curr_token.is(tok::Let)) {
         return variable_declaration();
     } 
-    else if (curr_token.is_one_of(tok::Fn)) {
+    else if (curr_token.is(tok::Fn)) {
         return nullptr;
     }
     else {
@@ -109,9 +109,9 @@ bool Parser::type(QualType& newtype) {
     newtype = QualType(); // reset type object just in case
 
     while (true) {
-        if (curr_token.is_one_of(tok::Identifier)) {
+        if (curr_token.is(tok::Identifier)) {
             bool is_const = false;
-            if (curr_token.is_one_of(tok::Const)) {
+            if (curr_token.is(tok::Const)) {
                 is_const = true;
                 advance();
             }
@@ -123,11 +123,11 @@ bool Parser::type(QualType& newtype) {
             
             return true;
         }
-        else if (curr_token.is_one_of(tok::Star)) {
+        else if (curr_token.is(tok::Star)) {
             advance();
 
             bool is_const = false;
-            if (curr_token.is_one_of(tok::Const)) {
+            if (curr_token.is(tok::Const)) {
                 is_const = true;
                 advance();
             }
@@ -230,7 +230,7 @@ Expr* Parser::primary_expression() {
         return idexpr.release();
     }
     */
-    else if (curr_token.is_one_of(tok::LeftParen)) {
+    else if (curr_token.is(tok::LeftParen)) {
         advance();
 
         Expr* expr = expression();
@@ -261,7 +261,7 @@ Expr* Parser::integer_literal_expression() {
         QualType spectype = context.get_i32_ty();
         advance();
 
-        if (curr_token.is_one_of(As)) {
+        if (curr_token.is(As)) {
             advance();
             if (!type(spectype)) {
                 return nullptr;
@@ -348,7 +348,7 @@ Expr* Parser::cast_expression() {
     if (!expr)
         return nullptr;
 
-    while (curr_token.is_one_of(tok::As)) {
+    while (curr_token.is(tok::As)) {
         advance();
 
         QualType cast_to;
@@ -400,7 +400,7 @@ Expr* Parser::recursive_parse_binary_expression(prec::Binary min_precedence) {
 }
 
 bool Parser::advance_expected(tok::Kind type) {
-    if (!curr_token.is_one_of(type)) {
+    if (!curr_token.is(type)) {
         return false;
     }
 

@@ -41,7 +41,7 @@ private:
             return false;
 
         while (true) {
-            if (!curr_token.is_one_of(tok::Identifier)) {
+            if (!curr_token.is(tok::Identifier)) {
                 return false;
             }
 
@@ -58,10 +58,10 @@ private:
 
             out = Parameter((std::string)identifier, std::move(ty));
 
-            if (curr_token.is_one_of(tok::Comma)) { // next parameter
+            if (curr_token.is(tok::Comma)) { // next parameter
                 continue;
             }
-            else if (curr_token.is_one_of(tok::RightParen)) { // end of list
+            else if (curr_token.is(tok::RightParen)) { // end of list
                 break;
             }
             else { // diag unrecognized token after type
@@ -89,7 +89,7 @@ private:
             return false;
         }
 
-        while (!curr_token.is_one_of(end_token)) {
+        while (!curr_token.is(end_token)) {
             if (Expr* expr = expression()) {
                 out = expr;
             }
