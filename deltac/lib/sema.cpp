@@ -4,7 +4,33 @@
 
 namespace deltac {
 
-TypeBuilder::TypeBuilder(Sema& action) : action(action) {}
+TypeBuilder::TypeBuilder(Sema& action) : action(action), base_ty(&res.type) {}
+
+bool TypeBuilder::add_ptr(bool constness) {
+    res.add_ptr(constness);
+    return true;
+}
+
+bool TypeBuilder::finalize(std::string_view id) {
+    if (errored) {
+        return false;
+    }
+
+    Type* ty = action.new_type_from_id(id);
+
+    if (!ty) {
+        errored = true;
+        return false;
+    }
+
+    *base_ty = ty;
+
+    return finalized = true;
+}
+
+bool TypeBuilder::finalize(llvm::ArrayRef<QualType> params, QualType ret_ty, util::use_copy_t) {
+    
+}
 
 Expr* Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty) {
     if (ty != nullptr && !ty->is_integer_ty()) {
@@ -103,5 +129,7 @@ Expr* Sema::add_bool_cast(Expr* expr) {
 
     return ImplicitCastExpr::new_bool_cast(expr, context.get_bool_ty());
 }
+
+
 
 } // namespace deltac

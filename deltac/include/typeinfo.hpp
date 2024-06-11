@@ -142,6 +142,8 @@ public:
 
     friend bool operator ==(const QualType& lhs, const QualType& rhs);
 
+    friend class TypeBuilder;
+
 private:
     qual::Qual qualification;
     Type* type;
@@ -195,6 +197,13 @@ class FunctionType : public Type {
 public:
     FunctionType(llvm::ArrayRef<QualType> args_ty, QualType return_ty, util::use_copy_t = util::use_copy) : 
         args_ty(args_ty), return_ty(std::move(return_ty)) {}
+
+    FunctionType(llvm::ArrayRef<QualType> args, QualType return_ty, util::use_move_t) :
+        return_ty(std::move(return_ty)) {
+        for (auto&& arg : args) {
+            args_ty.emplace_back(std::move(arg));
+        }
+    }
 
     ~FunctionType() override = default;
 
