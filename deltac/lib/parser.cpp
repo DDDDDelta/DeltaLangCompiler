@@ -220,16 +220,9 @@ Expr* Parser::primary_expression() {
     )) {
         return integer_literal_expression();
     }
-    // dont have sema yet...
-    /*
-    else if (curr_token.is_one_of(TokenType::Identifier)) {
-        std::unique_ptr<IdExpr> idexpr = std::make_unique<IdExpr>();
-
-        idexpr->identifier = advance_identifier();
-
-        return idexpr.release();
+    else if (curr_token.is(tok::Identifier)) {
+        // return action.act_on_id_expr(curr_token);
     }
-    */
     else if (curr_token.is(tok::LeftParen)) {
         advance();
 
@@ -258,17 +251,18 @@ Expr* Parser::integer_literal_expression() {
         posix = 16;
         [[fallthrough]];
     case DecIntLiteral:
-        QualType spectype = context.get_i32_ty();
         advance();
 
         if (curr_token.is(As)) {
             advance();
-            if (!type(spectype)) {
+            if (auto ty = type()) {
+                return action.act_on_int_literal(curr_token, posix, &*ty);
+            } else {
                 return nullptr;
             }
         }
 
-        return action.act_on_int_literal(curr_token, posix, &spectype);
+        return action.act_on_int_literal(curr_token, posix, nullptr);
     }
     default:
         DELTA_UNREACHABLE("must be a literal expression type token");
@@ -283,9 +277,6 @@ Expr* Parser::integer_literal_expression() {
  */
 Expr* Parser::postfix_expression() {
     // CallExpression or IndexExpression
-
-    // lets forget about this for a sec...
-    /*
     while (true) {
         if (curr_token.is_one_of(TokenType::LeftParen)) {
             std::vector<Expr*> args;
@@ -304,7 +295,6 @@ Expr* Parser::postfix_expression() {
         }
         // TODO: index expression
     }
-    */
 
     return primary_expression();
 }
@@ -327,10 +317,6 @@ Expr* Parser::unary_expression() {
         else {
             return nullptr;
         }
-
-        QualType type; // = sema.unaryexpr_type(op, expr);
-
-        return new UnaryExpr(std::move(type), op, expr);
     }
     else {
         return postfix_expression();
@@ -348,22 +334,17 @@ Expr* Parser::cast_expression() {
     if (!expr)
         return nullptr;
 
-    while (curr_token.is(tok::As)) {
+    while (curr_token.is(tok::To)) {
         advance();
 
-        QualType cast_to;
-        if (!type(cast_to)) {
+        if (auto opt_ty = type()) {
+            action.act_on_cast_expr(expr, *opt_ty);
+        }
+        else {
             // error invalid type
             delete expr;
             return nullptr;
         }
-
-        // if (!sema.validate_cast(expr, type)) {
-        //     delete expr;
-        //     return nullptr;
-        // }
-
-        CastExpr* castexpr = new CastExpr(std::move(cast_to), expr);
     }
 
     // act on expr
@@ -393,7 +374,18 @@ Expr* Parser::recursive_parse_binary_expression(prec::Binary min_precedence) {
         prec::Binary next_min_precedence = (prec::Binary)(cur_op_precedence + 1);
 
         Expr* rhs = recursive_parse_binary_expression(next_min_precedence);
-        lhs = new BinaryExpr(QualType(), Expr::Unclassified, lhs, opt_op.value(), rhs);
+
+        if (!rhs) {
+            delete lhs;
+            return nullptr;
+        }
+
+        lhs = action.act_on_binary_expr(lhs, *opt_op, rhs);
+
+        if (!lhs) {
+            return nullptr;
+        }
+        // lhs = new BinaryExpr(QualType(), Expr::Unclassified, lhs, opt_op.value(), rhs);
     }
 
     return lhs;

@@ -10,7 +10,6 @@
 #include "astcontext.hpp"
 #include "sema.hpp"
 
-#include <ranges>
 #include <memory>
 #include <iterator>
 
@@ -30,10 +29,40 @@ public:
     }
 
 private:
-    bool type(QualType&);
+    std::optional<QualType> type();
 
     Decl* declaration();
     Decl* variable_declaration();
+
+    template <typename Container, typename Fn>
+    bool list_of(
+        std::back_insert_iterator<Container> out, 
+        Fn&& fn, 
+        tok::Kind start, 
+        tok::Kind end, 
+        bool accept_empty = true
+    ) {
+        if (!advance_expected(start)) {
+            return false;
+        }
+
+        if (accept_empty && curr_token.is(end)) {
+            advance();
+            return true;
+        }
+        else if (!accept_empty && curr_token.is(end)) {
+            return false;
+        }
+
+        while (!curr_token.is(end)) {
+            if (auto res = fn()) {
+                
+            } 
+            else {
+                return false;
+            }
+        }
+    }
 
     template <typename Container>
     bool parameter_list(std::back_insert_iterator<Container> out) {
@@ -51,8 +80,8 @@ private:
                 return false;
             }
 
-            QualType ty;
-            if (!type(ty)) {
+            auto ty = type();
+            if (!ty) {
                 return false;
             }
 

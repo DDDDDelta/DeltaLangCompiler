@@ -4,7 +4,7 @@
 
 namespace deltac {
 
-TypeBuilder::TypeBuilder(Sema& action) : action(action), base_ty(&res.type) {}
+TypeBuilder::TypeBuilder(Sema& action) : res(action.context.get_void_ty()), base_ty(&res.type), action(action) {}
 
 bool TypeBuilder::add_ptr(bool constness) {
     res.add_ptr(constness);
@@ -28,8 +28,53 @@ bool TypeBuilder::finalize(std::string_view id) {
     return finalized = true;
 }
 
-bool TypeBuilder::finalize(llvm::ArrayRef<QualType> params, QualType ret_ty, util::use_copy_t) {
+bool TypeBuilder::finalize(llvm::ArrayRef<QualType> param_ty, QualType ret_ty, util::use_move_t) {
+    if (errored) {
+        return false;
+    }
+
+    Type* ty = action.new_function_ty(param_ty, std::move(ret_ty));
+    if (!ty) {
+        errored = true;
+        return false;
+    }
+
+    *base_ty = ty;
+
+    return finalized = true;
+}
+
+void TypeBuilder::reset() {
+    errored = false;
+    finalized = false;
+    res = action.context.get_void_ty();
+    base_ty = &res.type;
+}
+
+bool TypeBuilder::reset(QualType& ty) {
+    bool ret;
+
+    if (ret = (!errored && finalized)) {
+        ty = std::move(res);
+    }
+
+    errored = false;
+    finalized = false;
     
+    res = action.context.get_void_ty();
+    base_ty = &res.type;
+
+    return ret;
+}
+
+bool TypeBuilder::get(QualType& ty) {
+    bool ret;
+
+    if (ret = (!errored && finalized)) {
+        ty = res;
+    }
+
+    return ret;
 }
 
 Expr* Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty) {
@@ -130,6 +175,8 @@ Expr* Sema::add_bool_cast(Expr* expr) {
     return ImplicitCastExpr::new_bool_cast(expr, context.get_bool_ty());
 }
 
-
+Type* Sema::new_function_ty(llvm::ArrayRef<QualType> param_ty, QualType ret_ty) {
+    return new FunctionType(param_ty, std::move(ret_ty), util::use_move);
+}
 
 } // namespace deltac

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "decl.hpp"
 
 #include <vector>

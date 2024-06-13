@@ -78,6 +78,7 @@ KEYWORD(Return, "return")
 KEYWORD(True, "true")
 KEYWORD(False, "false")
 KEYWORD(As, "as")
+KEYWORD(To, "to")
 
 TOK(ERROR)
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "expression.hpp"
+#include "ownership.hpp"
 #include "typeinfo.hpp"
 
 #include "llvm/ADT/SmallVector.h"
@@ -82,5 +83,7 @@ struct Parameter {
 class FuncDecl;
 
 class TypeDecl;
+
+using DeclResult = ActionResult<Decl*>;
 
 } // namespace deltac

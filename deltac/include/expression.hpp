@@ -6,18 +6,17 @@
 #include "utils.hpp"
 #include "typeinfo.hpp"
 #include "operators.hpp"
+#include "ownership.hpp"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
 
-#include <concepts>
 #include <cstdint>
 #include <cstddef>
 #include <optional>
 #include <utility>
-#include <any>
 #include <string>
 #include <string_view>
 // #include <format>
@@ -33,7 +32,6 @@ public:
     };
 
 public:
-    Expr() = default;
     Expr(QualType type, ValCate valcate) : exprtype(std::move(type)), valcate(valcate) {}
     Expr(const Expr&) = delete;
     Expr(Expr&&) = delete;
@@ -61,6 +59,14 @@ public:
 
     void set_unclassified() {
         valcate = Unclassified;
+    }
+
+    void value(ValCate val) {
+        valcate = val;
+    }
+
+    ValCate value() {
+        return valcate;
     }
 
     bool can_modify() const {
@@ -176,7 +182,6 @@ public:
         BoolCast,
         IntToFloat,
         IntToBool,
-        IntToFloat,
     };
 
 public:
@@ -258,15 +263,15 @@ private:
 
 class ParenExpr : public Expr {
 public:
-    ParenExpr(Expr* expr) : expr(expr) {
-        type() = expr->type();
-    }
+    ParenExpr(Expr* expr) : Expr(expr->type(), expr->value()), expr(expr) {}
 
     ~ParenExpr() override { delete expr; }
 
 private:
     Expr* expr;
 };
+
+using ExprResult = ActionResult<Expr*>;
 
 }
 

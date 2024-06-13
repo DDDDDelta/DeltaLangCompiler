@@ -6,6 +6,8 @@
 
 namespace deltac {
 
+class Sema;
+
 class TypeBuilder {
 public:
     TypeBuilder(Sema& action);
@@ -15,17 +17,14 @@ public:
     // bool add_array_ref(bool constness = false);
     bool finalize(std::string_view id);
     
-    template <typename T>
-    bool finalize(llvm::ArrayRef<QualType> params, QualType ret_ty) {
-        
-    }
+    bool finalize(llvm::ArrayRef<QualType> param_ty, QualType ret_ty, util::use_move_t = util::use_move);
 
     bool has_error() const { return errored; }
     bool has_finalized() const { return finalized; }
 
     void reset();
-
-    bool get_qual_type(QualType& qual);
+    bool reset(QualType& ty);
+    bool get(QualType& ty);
 
 private:
     bool errored = false;
@@ -43,13 +42,14 @@ public:
 
     Expr* act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty);
     Expr* act_on_unary_expr(UnaryOp, Expr* expr);
+    Expr* act_on_cast_expr(Expr* expr, QualType ty);
 
 private:
     Expr* add_integer_promotion(Expr* expr);
     Expr* add_bool_cast(Expr* expr);
 
     Type* new_type_from_id(std::string_view);
-    Type* new_function_ty();
+    Type* new_function_ty(llvm::ArrayRef<QualType> param_ty, QualType ret_ty);
 
 private:
     friend class TypeBuilder;
