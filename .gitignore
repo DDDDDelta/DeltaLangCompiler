@@ -4,3 +4,4 @@ testmain.cpp
 build/
 *.o
 test/test.exe
+deltac/.clangd

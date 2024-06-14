@@ -105,8 +105,8 @@ ExprStmt* Parser::expression_statement() {
  *     | '*' Type
  *     ;
  */
-bool Parser::type(QualType& newtype) {
-    newtype = QualType(); // reset type object just in case
+TypeResult Parser::type() {
+    TypeBuilder builder(action);
 
     while (true) {
         if (curr_token.is(tok::Identifier)) {
@@ -275,6 +275,7 @@ Expr* Parser::integer_literal_expression() {
  *     | PostFixExpression '[' Expression ']'       (IndexExpression) // TODO: implement this
  *     ;
  */
+/*
 Expr* Parser::postfix_expression() {
     // CallExpression or IndexExpression
     while (true) {
@@ -298,21 +299,21 @@ Expr* Parser::postfix_expression() {
 
     return primary_expression();
 }
-
+*/
 /*
  * UnaryExpression
  *     : PostfixExpression
  *     | UnaryOperator CastExpression
  *     ;
  */
-Expr* Parser::unary_expression() {
+ExprResult Parser::unary_expression() {
     if (is_unary_operator(curr_token)) {
         UnaryOp op = *to_unary_operator(curr_token.get_type());
         advance();
 
-        if (Expr* expr = unary_expression()) {
+        if (auto expr = unary_expression()) {
             // act on expr
-            return action.act_on_unary_expr(op, expr);
+            return action.act_on_unary_expr(op, *expr);
         }
         else {
             return nullptr;
@@ -329,21 +330,21 @@ Expr* Parser::unary_expression() {
  *     | CastExpression 'as' Typename
  *     ;
  */
-Expr* Parser::cast_expression() {
-    Expr* expr = unary_expression();
+ExprResult Parser::cast_expression() {
+    auto expr = unary_expression();
     if (!expr)
-        return nullptr;
+        return action_error;
 
     while (curr_token.is(tok::To)) {
         advance();
 
         if (auto opt_ty = type()) {
-            action.act_on_cast_expr(expr, *opt_ty);
+            action.act_on_cast_expr(*expr, *opt_ty);
         }
         else {
             // error invalid type
-            delete expr;
-            return nullptr;
+            delete *expr;
+            return action_error;
         }
     }
 
@@ -352,12 +353,15 @@ Expr* Parser::cast_expression() {
     return expr;
 }
 
-Expr* Parser::binary_expression() {
+ExprResult Parser::binary_expression() {
     return recursive_parse_binary_expression(prec::Unknown);
 }
 
-Expr* Parser::recursive_parse_binary_expression(prec::Binary min_precedence) {
-    Expr* lhs = cast_expression();
+ExprResult Parser::recursive_parse_binary_expression(prec::Binary min_precedence) {
+    ExprResult lhs = cast_expression();
+    if (!lhs) {
+        return action_error;
+    }
 
     while (true) {
         auto opt_op = to_binary_operator(curr_token.get_type()); // not a binary operator, binary expression ends
@@ -373,17 +377,19 @@ Expr* Parser::recursive_parse_binary_expression(prec::Binary min_precedence) {
 
         prec::Binary next_min_precedence = (prec::Binary)(cur_op_precedence + 1);
 
-        Expr* rhs = recursive_parse_binary_expression(next_min_precedence);
+        ExprResult rhs = recursive_parse_binary_expression(next_min_precedence);
 
         if (!rhs) {
-            delete lhs;
-            return nullptr;
+            // TODO: diag
+            delete *lhs;
+            return action_error;
         }
 
-        lhs = action.act_on_binary_expr(lhs, *opt_op, rhs);
+        lhs = action.act_on_binary_expr(*lhs, *opt_op, *rhs);
 
         if (!lhs) {
-            return nullptr;
+            // TODO: diag
+            break;
         }
         // lhs = new BinaryExpr(QualType(), Expr::Unclassified, lhs, opt_op.value(), rhs);
     }

@@ -23,8 +23,8 @@ public:
     bool has_finalized() const { return finalized; }
 
     void reset();
-    bool reset(QualType& ty);
-    bool get(QualType& ty);
+    TypeResult release();
+    TypeResult get();
 
 private:
     bool errored = false;
@@ -40,9 +40,9 @@ public:
     
     const ASTContext& ast_context() const { return context; }
 
-    Expr* act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty);
-    Expr* act_on_unary_expr(UnaryOp, Expr* expr);
-    Expr* act_on_cast_expr(Expr* expr, QualType ty);
+    ExprResult act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty);
+    ExprResult act_on_unary_expr(UnaryOp, Expr* expr);
+    ExprResult act_on_cast_expr(Expr* expr, QualType ty);
 
 private:
     Expr* add_integer_promotion(Expr* expr);

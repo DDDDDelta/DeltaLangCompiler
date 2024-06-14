@@ -54,7 +54,7 @@ void TypeBuilder::reset() {
 bool TypeBuilder::reset(QualType& ty) {
     bool ret;
 
-    if (ret = (!errored && finalized)) {
+    if ((ret = !errored && finalized)) {
         ty = std::move(res);
     }
 
@@ -67,20 +67,18 @@ bool TypeBuilder::reset(QualType& ty) {
     return ret;
 }
 
-bool TypeBuilder::get(QualType& ty) {
-    bool ret;
-
-    if (ret = (!errored && finalized)) {
-        ty = res;
+TypeResult TypeBuilder::get() {
+    if (!errored && finalized) {
+        return res;
     }
 
-    return ret;
+    return action_error;
 }
 
-Expr* Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty) {
+ExprResult Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty) {
     if (ty != nullptr && !ty->is_integer_ty()) {
         // error incompatible specified type for int literal
-        return nullptr;
+        return action_error;
     }
 
     bool is_unsigned = !ty ? true : ty->is_signed_ty();
@@ -91,14 +89,15 @@ Expr* Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* t
 
     if (literal_parser.get_apint_val(val)) {
         // TODO: error overflow
-        return nullptr;
+        return action_error;
     }
 
     return new IntLiteralExpr(!ty ? context.get_i32_ty() : std::move(*ty), std::move(val));
 }
 
-Expr* Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
-    assert(!expr->type().is_void_ty());
+ExprResult Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
+    // TODO: handle error cases
+
 
     /*
      * 1) zero or one conversion from the following set:
@@ -154,7 +153,7 @@ Expr* Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
     case UnaryOp::Deref:
         if (!expr->type().is_ptr_ty()) {
             // error dereferencing non-pointer type
-            return nullptr;
+            return action_error;
         }
         return new UnaryExpr(expr->type(), Expr::LValue, op, expr);
 

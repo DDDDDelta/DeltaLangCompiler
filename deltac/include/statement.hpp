@@ -29,6 +29,8 @@ private:
     llvm::SmallVector<Stmt*> stmtlist;
 };
 
+using StmtResult = ActionResult<Stmt*>;
+
 } // namespace deltac
 
 /*

@@ -207,6 +207,8 @@ public:
 public:
     ActionResult(action_error_t = action_error) : ptr(nullptr) {}
 
+    ActionResult(std::nullptr_t) = delete;
+
     ActionResult(Value ptr) : ptr(ptr) {}
 
     Value get() const { return ptr; }

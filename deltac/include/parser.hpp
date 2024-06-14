@@ -29,10 +29,10 @@ public:
     }
 
 private:
-    std::optional<QualType> type();
+    TypeResult type();
 
-    Decl* declaration();
-    Decl* variable_declaration();
+    DeclResult declaration();
+    DeclResult variable_declaration();
 
     template <typename Container, typename Fn>
     bool list_of(
@@ -85,7 +85,7 @@ private:
                 return false;
             }
 
-            out = Parameter((std::string)identifier, std::move(ty));
+            out = Parenmeter((std::string)identifier, std::move(ty));
 
             if (curr_token.is(tok::Comma)) { // next parameter
                 continue;
@@ -103,10 +103,10 @@ private:
         return true;
     }
 
-    Stmt* statement();
-    Stmt* compound_statement();
-    Stmt* expression_statement();
-    Stmt* return_statement();
+    StmtResult statement();
+    StmtResult compound_statement();
+    StmtResult expression_statement();
+    StmtResult return_statement();
 
     template <typename Container>
     bool expression_list(
@@ -119,8 +119,8 @@ private:
         }
 
         while (!curr_token.is(end_token)) {
-            if (Expr* expr = expression()) {
-                out = expr;
+            if (auto expr = expression()) {
+                out = *expr;
             }
             else {
                 return false;
@@ -131,14 +131,14 @@ private:
         return true;
     }
 
-    Expr* expression();
-    Expr* primary_expression();
-    Expr* integer_literal_expression();
-    Expr* postfix_expression();
-    Expr* unary_expression();
-    Expr* cast_expression();
-    Expr* binary_expression();
-    Expr* recursive_parse_binary_expression(prec::Binary);
+    ExprResult expression();
+    ExprResult primary_expression();
+    ExprResult integer_literal_expression();
+    ExprResult postfix_expression();
+    ExprResult unary_expression();
+    ExprResult cast_expression();
+    ExprResult binary_expression();
+    ExprResult recursive_parse_binary_expression(prec::Binary);
 
     // TypeInfo type_info();
     bool advance_expected(tok::Kind type);
