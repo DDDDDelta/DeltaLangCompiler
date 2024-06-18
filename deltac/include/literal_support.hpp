@@ -1,19 +1,21 @@
 #pragma once
 
+#include "token.hpp"
 #include "utils.hpp"
 
-#include "llvm/ADT/APSInt.h"
-#include "llvm/ADT/StringExtras.h"
-
 #include <string_view>
+
+namespace llvm {
+class APInt;
+}
 
 namespace deltac {
 
 // This class is inspired by clang::NumericLiteralParser
 class IntLiteralParser {
 public:
-    explicit IntLiteralParser(std::string_view tok_spelling);
-    IntLiteralParser(std::string_view tok_spelling, std::uint8_t radix);
+    explicit IntLiteralParser(const Token& tok);
+    IntLiteralParser(const Token& tok, std::uint8_t radix);
 
     std::uint8_t get_radix() const { return radix; }
 

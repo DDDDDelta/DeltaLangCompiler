@@ -15,22 +15,25 @@ public:
     bool add_ptr(bool constness = false);
     // bool add_array(Expr* size);
     // bool add_array_ref(bool constness = false);
-    bool finalize(std::string_view id);
+    bool finalize(const Token& tok, bool constness = false);
     
     bool finalize(llvm::ArrayRef<QualType> param_ty, QualType ret_ty, util::use_move_t = util::use_move);
 
-    bool has_error() const { return errored; }
+    bool has_errored() const { return errored; }
     bool has_finalized() const { return finalized; }
 
-    void reset();
+    bool reset();
     TypeResult release();
     TypeResult get();
+
+private:
+    void reset_internal();
 
 private:
     bool errored = false;
     bool finalized = false;
     QualType res;
-    Type** base_ty;
+    QualType* base;
     Sema& action;
 };
 

@@ -1,5 +1,9 @@
 #include "literal_support.hpp"
 
+#include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/StringExtras.h"
+
+
 namespace deltac {
 
 // directly from clang::alwaysFitsInto64Bits
@@ -18,9 +22,11 @@ static bool fits_into_64_bits(std::uint8_t radix, std::size_t numdigits) {
     }
 }
 
-IntLiteralParser::IntLiteralParser(std::string_view sv) : 
-    begin(&sv.front()), end(&sv.back()) {
+IntLiteralParser::IntLiteralParser(const Token& t) : 
+    begin(&t.get_view().front()), end(&t.get_view().back()) {
     const int prefix_size = 2;
+
+    const std::string_view& sv = t.get_view();
 
     if (sv.size() <= prefix_size) {// cannot have 0x prefix
         digit_begin = begin;
@@ -37,8 +43,8 @@ IntLiteralParser::IntLiteralParser(std::string_view sv) :
     s = digit_begin;
 }
 
-IntLiteralParser::IntLiteralParser(std::string_view sv, std::uint8_t radix) :
-    begin(&sv.front()), end(&sv.back()), 
+IntLiteralParser::IntLiteralParser(const Token& t, std::uint8_t radix) :
+    begin(&t.get_view().front()), end(&t.get_view().back()), 
     digit_begin(radix != 10 ? begin + 2 : begin), s(digit_begin),
     radix(radix) {}
     

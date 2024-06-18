@@ -62,6 +62,11 @@ void QualType::remove_const() {
     qualification = qual::NoQual;
 }
 
+void QualType::add_const() {
+    assert(is_mutable());
+    qualification = qual::Const;
+}
+
 // transfer data of current QualType to a new PtrType
 // then set it back to current qualtype with new qualification(constness)
 void QualType::add_ptr(bool constness) {
@@ -96,6 +101,10 @@ bool QualType::is_integer_ty() const {
         return false;
     }
 }
+
+Type* QualType::raw_type() const { return type; }
+
+void QualType::raw_type(Type* ty) { type = ty; }
 
 std::string BuiltinType::repr() const { return to_string(kind); }
 

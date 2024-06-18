@@ -164,8 +164,8 @@ private:
 
 class CastExpr : public Expr { // currently only consists of implicit casts
 public:
-    CastExpr(Expr* e) : 
-        Expr(e->type(), RValue), expr(e) {}
+    CastExpr(Expr* e, QualType ty) : 
+        Expr(std::move(ty), RValue), expr(e) {}
 
     ~CastExpr() override { delete expr; }
 
@@ -182,6 +182,8 @@ public:
         BoolCast,
         IntToFloat,
         IntToBool,
+        FloatToInt,
+        PtrToBool,
     };
 
 public:
@@ -193,33 +195,13 @@ public:
         return new ImplicitCastExpr(QualType::make_ptr_ty(expr->type()), expr, FnToPtr);
     }
 
-    static ImplicitCastExpr* new_int_cast(Expr* expr, QualType to) {
-        assert(to.is_integer_ty());
-
-        return new ImplicitCastExpr(std::move(to), expr, IntCast);
-    }
-
-    static ImplicitCastExpr* new_int_to_float_cast(Expr* expr, QualType to) {
-        assert(to.is_float_ty());
-
-        return new ImplicitCastExpr(std::move(to), expr, IntToFloat);
-    }
-
-    static ImplicitCastExpr* new_bool_cast(Expr* expr, QualType to) {
-        assert(to.is_bool_ty());
-
-        return new ImplicitCastExpr(std::move(to), expr, BoolCast);
-    }
-
-protected:
-    explicit ImplicitCastExpr(QualType t, Expr* expr, Kind k) : Expr(std::move(t), RValue), expr(expr), kind(k) {}
-
 public:
+    ImplicitCastExpr(QualType t, Expr* expr, Kind k) : Expr(std::move(t), RValue), expr(expr), kind(k) {}
 
     ~ImplicitCastExpr() override { delete expr; }
 
-    std::pair<QualType, QualType> cast_types() const {
-        return { expr->type(), this->type() };
+    std::pair<const QualType*, const QualType*> cast_types() const {
+        return { &expr->type(), &this->type() };
     }
 
     bool is_lval_to_rval() const { return kind == LValCast; }

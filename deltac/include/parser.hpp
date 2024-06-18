@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <iterator>
+#include <functional>
 
 namespace deltac {
 
@@ -35,7 +36,7 @@ private:
     DeclResult variable_declaration();
 
     template <typename Container, typename Fn>
-    bool list_of(
+    bool parse_list_of(
         std::back_insert_iterator<Container> out, 
         Fn&& fn, 
         tok::Kind start, 
@@ -46,22 +47,22 @@ private:
             return false;
         }
 
-        if (accept_empty && curr_token.is(end)) {
-            advance();
-            return true;
-        }
-        else if (!accept_empty && curr_token.is(end)) {
+        if (!accept_empty && curr_token.is(end)) {
             return false;
         }
 
         while (!curr_token.is(end)) {
-            if (auto res = fn()) {
-                
-            } 
+            if (auto res = std::invoke(fn)) { // some kind of ActionResult or std::optional object
+                out = *res;
+            }
             else {
                 return false;
             }
         }
+
+        advance();
+
+        return true;
     }
 
     template <typename Container>
@@ -142,6 +143,7 @@ private:
 
     // TypeInfo type_info();
     bool advance_expected(tok::Kind type);
+    bool try_advance(tok::Kind type);
     void advance();
 
 private:

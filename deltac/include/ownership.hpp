@@ -1,9 +1,10 @@
 #pragma once
 
+#include "utils.hpp"
+
 #include <utility>
 #include <type_traits>
-
-#include "utils.hpp"
+#include <functional>
 
 namespace deltac {
 
@@ -100,13 +101,13 @@ class ActionResult : private _impl::ARBase<T> {
 public:
     using Value = T;
 
-    static inline bool is_ptr_specialization = false;
+    static inline constexpr bool is_ptr_specialization = false;
 
 private:
     using Base = _impl::ARBase<T>;
 
     template <typename Other> 
-    static inline bool enable_direct_conv = std::conjunction_v<
+    static inline constexpr bool enable_direct_conv = std::conjunction_v<
         std::negation<std::is_same<util::remove_cvref_t<Other>, ActionResult>>, // is not a copy construction
         std::negation<std::is_same<util::remove_cvref_t<Other>, std::in_place_t>>, // is not the in_place singleton
         std::is_constructible<Value, Other> // can be constructed from Other
@@ -202,7 +203,7 @@ class ActionResult<T*> {
 public:
     using Value = T*;
 
-    static inline bool is_ptr_specialization = true;
+    static inline constexpr bool is_ptr_specialization = true;
 
 public:
     ActionResult(action_error_t = action_error) : ptr(nullptr) {}
@@ -237,6 +238,11 @@ public:
         std::swap(ptr, other.ptr);
     }
 
+    void deletep() {
+        delete ptr;
+        reset();
+    }
+
     explicit operator bool() const { return is_usable(); }
 
     friend bool operator ==(const ActionResult& lhs, const ActionResult& rhs) {
@@ -265,6 +271,40 @@ public:
 
 private:
     Value ptr;
+};
+
+template <typename T, typename D>
+class GuardRAII {
+public:
+    using Guarded = T;
+    using Deleter = D;
+
+public:
+    GuardRAII(Guarded&& guarded, Deleter&& d = Deleter(), bool active = true) : 
+        g(std::forward(guarded)), d(std::forward(d)), enabled(active) {}
+
+    ~GuardRAII() {
+        if (enabled) {
+            std::invoke(d, g);
+        }
+    }
+
+    Guarded& guarded() { return g; }
+
+    const Guarded& guarded() const { return g; }
+
+    Deleter& deleter() { return d; }
+
+    const Deleter& deleter() const { return d; }
+
+    void activity(bool b) { enabled = b; }
+
+    bool is_active() const { return enabled; }
+
+private:
+    Guarded&& g;
+    Deleter&& d;
+    bool enabled;
 };
 
 }

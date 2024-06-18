@@ -35,9 +35,9 @@ public:
 namespace qual {
 
 enum Qual {
-    NoQual,
-    Const,
-    N_A
+    NoQual = 0,
+    Const = 1,
+    N_A = -1,
 };
 
 }
@@ -105,6 +105,10 @@ public:
     ~QualType() { TypeDeleter()(type); }
 
 public:
+    Type* raw_type() const;
+
+    void raw_type(Type* type);
+
     std::string repr() const;
 
     bool can_be_vardecl_ty() const;
@@ -126,6 +130,8 @@ public:
     void remove_ptr();
 
     void remove_const();
+
+    void add_const();
 
     void add_ptr(bool constness = false);
 

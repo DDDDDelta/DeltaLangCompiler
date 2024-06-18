@@ -1,6 +1,9 @@
 #include "parser.hpp"
 
 #include "literal_support.hpp"
+#include "utils.hpp"
+
+#include <string_view>
 
 namespace deltac {
 
@@ -33,7 +36,7 @@ bool Parser::parse() {
     }
 }
 
-Decl* Parser::declaration() {
+DeclResult Parser::declaration() {
     if (curr_token.is(tok::Let)) {
         return variable_declaration();
     } 
@@ -110,33 +113,26 @@ TypeResult Parser::type() {
 
     while (true) {
         if (curr_token.is(tok::Identifier)) {
-            bool is_const = false;
-            if (curr_token.is(tok::Const)) {
-                is_const = true;
-                advance();
-            }
+            Token t = curr_token;
 
-            if (false/* = action.get_basic_qualtype(curr_token.get_view()) */) {
-                // TODO: error unrecognized basic type
-                return false;
-            }
+            advance();
+
+            bool is_const = try_advance(tok::Const);
+
+            builder.finalize(t, is_const);
             
-            return true;
+            return builder.release();
         }
         else if (curr_token.is(tok::Star)) {
             advance();
+            
+            bool is_const = try_advance(tok::Const);
 
-            bool is_const = false;
-            if (curr_token.is(tok::Const)) {
-                is_const = true;
-                advance();
-            }
-
-            newtype.add_ptr(is_const);
+            builder.add_ptr(is_const);
             // continue to parse compound type
         }
         else { // TODO: unrecognized token in type
-            return false;
+            return action_error;
         }
     }
 
@@ -194,8 +190,8 @@ Stmt* Parser::statement() {
  *     : PostfixExpr
  *     ;
  */
-Expr* Parser::expression() {
-    return cast_expression();
+ExprResult Parser::expression() {
+    return binary_expression();
 }
 
 /*
@@ -214,7 +210,7 @@ Expr* Parser::expression() {
  *     ;
  * 
  */
-Expr* Parser::primary_expression() {
+ExprResult Parser::primary_expression() {
     if (curr_token.is_one_of(
         tok::HexIntLiteral, tok::DecIntLiteral
     )) {
@@ -226,24 +222,24 @@ Expr* Parser::primary_expression() {
     else if (curr_token.is(tok::LeftParen)) {
         advance();
 
-        Expr* expr = expression();
-        if (expr == nullptr) {
-            return nullptr;
+        ExprResult expr = expression();
+        if (!expr) {
+            return action_error;
         }
 
         if (!advance_expected(tok::RightParen)) {
-            delete expr;
-            return nullptr;
+            expr.deletep();
+            return action_error;
         }
 
-        return new ParenExpr(expr);
+        // return new ParenExpr(expr);
     }
 
     // TODO: unrecognized token for primary expression
-    return nullptr;
+    return action_error;
 }
 
-Expr* Parser::integer_literal_expression() {
+ExprResult Parser::integer_literal_expression() {
     std::uint8_t posix = 10;
     switch (curr_token.get_type()) {
         using namespace tok; 
@@ -258,7 +254,7 @@ Expr* Parser::integer_literal_expression() {
             if (auto ty = type()) {
                 return action.act_on_int_literal(curr_token, posix, &*ty);
             } else {
-                return nullptr;
+                return action_error;
             }
         }
 
@@ -271,35 +267,43 @@ Expr* Parser::integer_literal_expression() {
 
 /* PostfixExpression:
  *     : PrimaryExpression
- *     | PostFixExpression '(' ExpressionList ')'   (CallExpression)
+ *     | PostFixExpression '(' ExpressionList[opt] ')'   (CallExpression)
  *     | PostFixExpression '[' Expression ']'       (IndexExpression) // TODO: implement this
  *     ;
  */
-/*
-Expr* Parser::postfix_expression() {
+ExprResult Parser::postfix_expression() {
+    ExprResult expr = primary_expression();
+
+    if (!expr) {
+        return action_error;
+    }
+
     // CallExpression or IndexExpression
     while (true) {
-        if (curr_token.is_one_of(TokenType::LeftParen)) {
-            std::vector<Expr*> args;
-            bool is_valid = expression_list(args, TokenType::LeftParen, TokenType::RightParen);
+        if (curr_token.is_one_of(tok::LeftParen)) { // callexpr
+            llvm::SmallVector<Expr*> args;
+            bool is_valid = parse_list_of(
+                std::back_inserter(args), 
+                std::bind(&Parser::expression, this),
+                tok::LeftParen,
+                tok::RightParen
+            );
             if (!is_valid) {
-                for (auto* p : args)
-                    delete p;
+                util::cleanup_ptrs(args.begin(), args.end());
 
-                return nullptr;
+                expr.deletep();
+
+                return action_error;
             }
-
-            callexpr->mainexpr = primexpr.release(); // noexcept
-            primexpr.reset(callexpr.release()); // noexcept
         } else {
             break;
         }
         // TODO: index expression
     }
 
-    return primary_expression();
+    return expr;
 }
-*/
+
 /*
  * UnaryExpression
  *     : PostfixExpression
@@ -307,16 +311,15 @@ Expr* Parser::postfix_expression() {
  *     ;
  */
 ExprResult Parser::unary_expression() {
-    if (is_unary_operator(curr_token)) {
-        UnaryOp op = *to_unary_operator(curr_token.get_type());
+    if (auto op = to_unary_operator(curr_token.get_type())) {
         advance();
 
         if (auto expr = unary_expression()) {
             // act on expr
-            return action.act_on_unary_expr(op, *expr);
+            return action.act_on_unary_expr(*op, *expr);
         }
         else {
-            return nullptr;
+            return action_error;
         }
     }
     else {
@@ -343,7 +346,7 @@ ExprResult Parser::cast_expression() {
         }
         else {
             // error invalid type
-            delete *expr;
+            expr.deletep();
             return action_error;
         }
     }
@@ -381,7 +384,7 @@ ExprResult Parser::recursive_parse_binary_expression(prec::Binary min_precedence
 
         if (!rhs) {
             // TODO: diag
-            delete *lhs;
+            lhs.deletep();
             return action_error;
         }
 
@@ -404,6 +407,10 @@ bool Parser::advance_expected(tok::Kind type) {
 
     advance();
     return true;
+}
+
+bool Parser::try_advance(tok::Kind type) {
+    return advance_expected(type);
 }
 
 void Parser::advance() {
