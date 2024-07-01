@@ -71,11 +71,19 @@ public:
     }
 
 public:
-    QualType get_i32_ty(bool is_const = false) const;
-    QualType get_int_ty_from_size(std::uint32_t bitwidth, bool is_signed, bool is_const = false) const;
-    QualType get_bool_ty(bool is_const = false) const;
-    QualType get_void_ty() const;
-    QualType get_void_ptr_ty(bool is_const = false) const;
+    Type* get_i32_ty() const;
+    Type* get_int_ty_size(u32 bitwidth, bool is_signed) const;
+    Type* get_bool_ty() const;
+    Type* get_void_ty() const;
+    Type* get_void_ptr_ty() const;
+
+    Type* get_uint_ty(u32 bitwidth) const {
+        return get_int_ty_size(bitwidth, false);
+    }
+
+    Type* get_int_ty(u32 bitwidth) const {
+        return get_int_ty_size(bitwidth, true);
+    }
 
 private:
     static BuiltinType builtin_types[];

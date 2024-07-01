@@ -1,5 +1,7 @@
 #pragma once
 
+#include "utils.hpp"
+
 #include <iostream>
 #include <fstream>
 #include <string_view>
@@ -19,7 +21,7 @@ public:
     const char* ptr_cbegin() const { return &buffer.front(); }
     // points the the next position passing null terminate character
     const char* ptr_cend() const { return &buffer.back() + 2; }
-    std::size_t size() const { return buffer.size(); }
+    usize size() const { return buffer.size(); }
     std::string name() const { return file_path.filename().string(); }
 
 private:

@@ -23,6 +23,8 @@
 
 namespace deltac {
 
+// there should not be something like a const Expr*
+// constness is enforced by getter/setters
 class Expr {
 public:
     enum ValCate {
@@ -45,7 +47,7 @@ public:
         valcate = RValue;
     }
 
-    bool is_lval() const {
+    bool is_lval() {
         return valcate == LValue;
     }
 
@@ -53,7 +55,7 @@ public:
         valcate = LValue;
     }
 
-    bool is_unclassified() const {
+    bool is_unclassified() {
         return valcate == Unclassified;
     }
 
@@ -69,15 +71,11 @@ public:
         return valcate;
     }
 
-    bool can_modify() const {
+    bool can_modify() {
         return exprtype.is_mutable();
     }
 
     QualType& type() {
-        return exprtype;
-    }
-
-    const QualType& type() const {
         return exprtype;
     }
 
@@ -162,24 +160,17 @@ private:
     Expr* index;
 };
 
+
 class CastExpr : public Expr { // currently only consists of implicit casts
 public:
-    CastExpr(Expr* e, QualType ty) : 
-        Expr(std::move(ty), RValue), expr(e) {}
-
-    ~CastExpr() override { delete expr; }
-
-private:
-    Expr* expr;
-};
-
-class ImplicitCastExpr : public Expr {
-public:
-    enum Kind {
-        LValCast,
-        FnToPtr,
+    enum CastKind {
+        NoOp,
+        LValueToRValue,
+        BitCast,
+        FnToPtrDecay,
         IntCast,
-        BoolCast,
+        FloatCast,
+        FloatToBool,
         IntToFloat,
         IntToBool,
         FloatToInt,
@@ -187,30 +178,38 @@ public:
     };
 
 public:
-    static ImplicitCastExpr* new_lval_cast(Expr* expr) {
-        return new ImplicitCastExpr(QualType::make_no_qual_ty(expr->type()), expr, LValCast);
+    CastExpr(Expr* e, QualType ty, CastKind op, bool is_part_of_explcast) : 
+        Expr(std::move(ty), RValue), expr(e), 
+        kind(op), is_part_of_explcast(is_part_of_explcast) {}
+
+    ~CastExpr() override { delete expr; }
+
+    CastKind op_code() const { return kind; }
+
+    Expr* castee() const { return expr; }
+
+    bool part_of_explcast() const { return is_part_of_explcast; }
+
+    CastKind cast_kind() const { return kind; }
+
+    std::pair<QualType*, QualType*> cast_types() {
+        return { &castee()->type(), &this->type() };
     }
-
-    static ImplicitCastExpr* new_fn_to_ptr_cast(Expr* expr) {
-        return new ImplicitCastExpr(QualType::make_ptr_ty(expr->type()), expr, FnToPtr);
-    }
-
-public:
-    ImplicitCastExpr(QualType t, Expr* expr, Kind k) : Expr(std::move(t), RValue), expr(expr), kind(k) {}
-
-    ~ImplicitCastExpr() override { delete expr; }
-
-    std::pair<const QualType*, const QualType*> cast_types() const {
-        return { &expr->type(), &this->type() };
-    }
-
-    bool is_lval_to_rval() const { return kind == LValCast; }
-
-    Kind cast_kind() const { return kind; }
 
 private:
     Expr* expr;
-    Kind kind;
+    CastKind kind;
+    bool is_part_of_explcast;
+};
+
+class ImplicitCastExpr : public CastExpr {
+public:
+    ImplicitCastExpr(Expr* expr, QualType t, CastKind op) : CastExpr(expr, std::move(t), op, true) {}
+};
+
+class ExplicitCastExpr : public CastExpr {
+public:
+    ExplicitCastExpr(Expr* expr, QualType t, CastKind op) : CastExpr(expr, std::move(t), op, false) {}
 };
 
 class IdExpr : public Expr {
@@ -227,10 +226,10 @@ class IntLiteralExpr : public Expr {
 public:
     IntLiteralExpr(
         QualType type, 
-        std::uint32_t numbits, 
+        u32 numbits, 
         std::string_view literalrepr, 
         bool is_unsigned = true,
-        std::uint8_t radix = 10
+        u8 radix = 10
     ) : 
         Expr(std::move(type), RValue), data(llvm::APInt(numbits, literalrepr, radix), is_unsigned) {}
 
@@ -251,6 +250,19 @@ public:
 
 private:
     Expr* expr;
+};
+
+class AssignExpr : public Expr {
+public:
+    AssignExpr(Expr* lhs, AssignOp op, Expr* rhs) : 
+        Expr(rhs->type(), LValue), exprs { lhs, rhs }, op(op) {}
+
+    ~AssignExpr() { delete exprs[LHS]; delete exprs[RHS]; }
+
+private:
+    enum { LHS, RHS, EXPR_END };
+    Expr* exprs[EXPR_END];
+    AssignOp op;
 };
 
 using ExprResult = ActionResult<Expr*>;

@@ -8,7 +8,7 @@
 
 namespace deltac {
 
-inline class action_error_t {} action_error;
+inline constexpr class action_error_t {} action_error;
 
 namespace _impl {
 

@@ -1,7 +1,9 @@
 #include "sema.hpp"
+#include "astcontext.hpp"
 #include "expression.hpp"
 #include "literal_support.hpp"
 #include "operators.hpp"
+#include "utils.hpp"
 
 namespace deltac {
 
@@ -15,11 +17,11 @@ bool TypeBuilder::add_ptr(bool constness) {
 }
 
 bool TypeBuilder::finalize(const Token& tok, bool constness) {
-    assert(!errored);
+    DELTA_ASSERT(!errored);
 
     finalized = true;
 
-    Type* ty = action.new_type_from_id(tok.get_view());
+    Type* ty = action.new_type_from_tok(tok);
 
     if (!ty) {
         errored = true;
@@ -36,7 +38,7 @@ bool TypeBuilder::finalize(const Token& tok, bool constness) {
 }
 
 bool TypeBuilder::finalize(llvm::ArrayRef<QualType> param_ty, QualType ret_ty, util::use_move_t) {
-    assert(!errored);
+    DELTA_ASSERT(!errored);
 
     finalized = true;
 
@@ -85,6 +87,14 @@ void TypeBuilder::reset_internal() {
     base = &res;
 }
 
+static Expr* new_lval_cast(Expr* expr) {
+    return new ImplicitCastExpr(expr, expr->type(), CastExpr::LValueToRValue);
+}
+
+static Expr* new_noop_cast(Expr* expr) {
+    return new ExplicitCastExpr(expr, expr->type(), CastExpr::NoOp);
+}
+
 ExprResult Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty) {
     if (ty != nullptr && !ty->is_integer_ty()) {
         // error incompatible specified type for int literal
@@ -113,7 +123,6 @@ ExprResult Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualTy
 ExprResult Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
     // TODO: handle error cases
 
-
     /*
      * 1) zero or one conversion from the following set:
      *   lvalue-to-rvalue conversion,
@@ -127,16 +136,21 @@ ExprResult Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
     case UnaryOp::BitwiseNot:
     case UnaryOp::Deref:
         if (expr->is_lval()) {
-            expr = ImplicitCastExpr::new_lval_cast(expr);
+            expr = new_lval_cast(expr);
         }
         break;
     case UnaryOp::AddressOf:
+        if (expr->is_rval()) {
+            return action_error;
+        }
         break;
     }
 
+    // lets leave implicit conversion to later...
     /*
      * 2) zero or one numeric promotion or numeric conversion;
      */
+    /*
     switch (op) {
     case UnaryOp::Plus:
     case UnaryOp::Minus:
@@ -154,6 +168,7 @@ ExprResult Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
     case UnaryOp::AddressOf:
         break;
     }
+    */
     
     /* 
      * constructs the unary expression 
@@ -170,37 +185,45 @@ ExprResult Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
             // error dereferencing non-pointer type
             return action_error;
         }
-        return new UnaryExpr(expr->type(), Expr::LValue, op, expr);
+        return new UnaryExpr(QualType::make_remove_ptr_ty(expr->type()), Expr::LValue, op, expr);
 
     case UnaryOp::AddressOf:
+        if (!expr->is_lval()) {
+            // TODO: error cannot take address of rvalue
+            return action_error;
+        }
+
         return new UnaryExpr(QualType::make_ptr_ty(expr->type()), Expr::RValue, op, expr);
     }
 }
 
 ExprResult Sema::act_on_cast_expr(Expr* expr, QualType ty) {
+    expr = new_lval_cast(expr);
+
     // if the expr is a pointer and is being casted to a pointer
-    if (ty.is_ptr_ty() && expr->type().is_ptr_ty()) {
-        if (expr->is_lval()) {
-            expr = ImplicitCastExpr::new_lval_cast(expr);
-        }
-        
-        return new CastExpr(expr, ty);
+    // it is a reinterpret cast    
+    if (ty.is_ptr_ty() && expr->type().is_ptr_ty()) { 
+        return new ExplicitCastExpr(expr, ty, CastExpr::BitCast);
+    }
+
+    // from pointer to a u64 is also a reinterpret cast
+    if (ty.is_ptr_ty() && expr->type().raw_type() == context.get_uint_ty(64u)) {
+        return new ExplicitCastExpr(expr, ty, CastExpr::BitCast);
     }
 }
 
 Expr* Sema::add_integer_promotion(Expr* expr) {
-    assert(expr->is_rval());
+    DELTA_ASSERT(expr->is_rval());
 
-    return new ImplicitCastExpr(context.get_i32_ty(), expr, ImplicitCastExpr::IntCast);
+    return new ImplicitCastExpr(expr, context.get_i32_ty(), CastExpr::IntCast);
 }
 
-Expr* Sema::add_bool_cast(Expr* expr) {
-    assert(expr->is_rval());
-
-    return new ImplicitCastExpr(context.get_bool_ty(), expr, ImplicitCastExpr::BoolCast);
+Type* Sema::new_type_from_tok(const Token& tok) {
+    return nullptr;
 }
 
 Type* Sema::new_function_ty(llvm::ArrayRef<QualType> param_ty, QualType ret_ty) {
+    // TODO: check function type
     return new FunctionType(param_ty, std::move(ret_ty), util::use_move);
 }
 

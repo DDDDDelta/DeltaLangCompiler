@@ -1,6 +1,6 @@
 #pragma once
 
-#include "decl.hpp"
+#include "declaration.hpp"
 #include "expression.hpp"
 #include "statement.hpp"
 #include "filebuffer.hpp"
@@ -35,71 +35,53 @@ private:
     DeclResult declaration();
     DeclResult variable_declaration();
 
+    ParameterResult parameter();
+
     template <typename Container, typename Fn>
     bool parse_list_of(
         std::back_insert_iterator<Container> out, 
         Fn&& fn, 
         tok::Kind start, 
-        tok::Kind end, 
-        bool accept_empty = true
+        tok::Kind end,
+        tok::Kind delimiter = tok::Comma, 
+        bool accept_empty = true,
+        bool allow_trailing_delim = false
     ) {
         if (!advance_expected(start)) {
             return false;
         }
 
+        // do not accept empty but got an empty list
         if (!accept_empty && curr_token.is(end)) {
+            // TODO: error empty list
             return false;
         }
 
         while (!curr_token.is(end)) {
-            if (auto res = std::invoke(fn)) { // some kind of ActionResult or std::optional object
-                out = *res;
-            }
-            else {
+            auto res = std::invoke(fn);
+
+            if (!res) {
                 return false;
+            }
+
+            *out = *res;
+
+            if (curr_token.is(delimiter)) {
+                advance();
+
+                if (curr_token.is(end) && allow_trailing_delim) {
+                    advance();
+                    return true;
+                }
+                else if (curr_token.is(end) && !allow_trailing_delim) {
+                    // TODO: diag no trailing delimiter
+
+                    return false;
+                }
+
+                // else continue to parse the next element
             }
         }
-
-        advance();
-
-        return true;
-    }
-
-    template <typename Container>
-    bool parameter_list(std::back_insert_iterator<Container> out) {
-        if (!advance_expected(tok::LeftParen))
-            return false;
-
-        while (true) {
-            if (!curr_token.is(tok::Identifier)) {
-                return false;
-            }
-
-            std::string_view identifier = curr_token.get_view();
-            advance();
-            if (!advance_expected(tok::Colon)) {
-                return false;
-            }
-
-            auto ty = type();
-            if (!ty) {
-                return false;
-            }
-
-            out = Parenmeter((std::string)identifier, std::move(ty));
-
-            if (curr_token.is(tok::Comma)) { // next parameter
-                continue;
-            }
-            else if (curr_token.is(tok::RightParen)) { // end of list
-                break;
-            }
-            else { // diag unrecognized token after type
-                return false;
-            }
-        }
-
-        advance(/* TokenType::RightParen */);
 
         return true;
     }
@@ -109,29 +91,6 @@ private:
     StmtResult expression_statement();
     StmtResult return_statement();
 
-    template <typename Container>
-    bool expression_list(
-        std::back_insert_iterator<Container> out, 
-        tok::Kind start_token, 
-        tok::Kind end_token
-    ) {
-        if (!advance_expected(start_token)) {
-            return false;
-        }
-
-        while (!curr_token.is(end_token)) {
-            if (auto expr = expression()) {
-                out = *expr;
-            }
-            else {
-                return false;
-            }
-        }
-
-        advance();
-        return true;
-    }
-
     ExprResult expression();
     ExprResult primary_expression();
     ExprResult integer_literal_expression();
@@ -140,11 +99,17 @@ private:
     ExprResult cast_expression();
     ExprResult binary_expression();
     ExprResult recursive_parse_binary_expression(prec::Binary);
+    ExprResult assignment_expression();
 
     // TypeInfo type_info();
     bool advance_expected(tok::Kind type);
     bool try_advance(tok::Kind type);
     void advance();
+
+    template <typename Fn>
+    auto bind_this(Fn&& fn) {
+        return std::bind(fn, this);
+    }
 
 private:
     Lexer lexer;

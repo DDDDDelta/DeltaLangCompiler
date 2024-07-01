@@ -13,14 +13,14 @@ namespace deltac {
 
 class KeywordTrie {
 private:
-    static constexpr int ALPHABET_SIZE = 26;
+    static constexpr usize ALPHABET_SIZE = 26;
 
     struct TrieNode {
         std::array<TrieNode*, ALPHABET_SIZE> children;
         tok::Kind token = tok::ERROR;
 
         TrieNode() {
-            for (auto& child : children) {
+            for (auto*& child : children) {
                 child = nullptr;
             }
         }

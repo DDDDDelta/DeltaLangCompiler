@@ -1,5 +1,5 @@
 #include "expression.hpp"
-#include "decl.hpp"
+#include "declaration.hpp"
 #include "astcontext.hpp"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -49,9 +49,8 @@ public:
 
 private:
     Expr* add_integer_promotion(Expr* expr);
-    Expr* add_bool_cast(Expr* expr);
 
-    Type* new_type_from_id(std::string_view);
+    Type* new_type_from_tok(const Token& token);
     Type* new_function_ty(llvm::ArrayRef<QualType> param_ty, QualType ret_ty);
 
 private:

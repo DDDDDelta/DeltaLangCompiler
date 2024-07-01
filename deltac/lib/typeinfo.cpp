@@ -26,7 +26,7 @@ std::string QualType::repr() const {
 
 bool QualType::can_be_vardecl_ty() const { return size() != 0; }
 
-std::size_t QualType::size() const {
+usize QualType::size() const {
     return type->size();
 }
 
@@ -110,7 +110,7 @@ std::string BuiltinType::repr() const { return to_string(kind); }
 
 std::size_t BuiltinType::size() const { return get_size(kind); }
 
-static std::size_t size_arr[] = {
+static const usize size_arr[] = {
 #define BUILTIN_TYPE(ID, NAME, SIZE) SIZE,
 #include "builtin_type.inc"
 };
@@ -128,7 +128,7 @@ std::string to_string(BuiltinType::Kind kind) {
     return to_string_arr[util::to_underlying(kind)]; 
 }
 
-static const signed char signedness_arr[] = {
+static const i8 signedness_arr[] = {
 #define BUILTIN_TYPE(ID, NAME, SIZE) 0,
 #define SIGNED_BUILTIN_TYPE(ID, NAME, SIZE) 1,
 #define UNSIGNED_BUILTIN_TYPE(ID, NAME, SIZE) -1,
@@ -145,6 +145,42 @@ bool is_unsigned(BuiltinType::Kind kind) {
 
 bool is_integer(BuiltinType::Kind kind) {
     return is_signed(kind) || is_unsigned(kind);
+}
+
+template <typename T>
+static bool type_equal(Type* lhs, Type* rhs) {
+    T* l = dynamic_cast<T*>(lhs), * r = dynamic_cast<T*>(rhs); 
+    if (l && r) {
+        return l->eq(r);
+    }
+    else {
+        return false;
+    }
+}
+
+bool QualType::noqual_eq(const QualType& rhs) const {
+    Type* t1 = raw_type(), * t2 = rhs.raw_type();
+    return 
+        type_equal<BuiltinType>(t1, t2) ||
+        type_equal<FunctionType>(t1, t2) ||
+        [](Type* t1, Type* t2) -> bool {
+            auto* l = dynamic_cast<PtrType*>(t1), 
+                * r = dynamic_cast<PtrType*>(t2);
+            if (l && r) {
+                return l->noqual_eq(r);
+            }
+            else {
+                return false;
+            }
+        }(t1, t2);
+}
+
+bool operator ==(const QualType& lhs, const QualType& rhs) {
+    Type* t1 = lhs.raw_type(), * t2 = rhs.raw_type();
+    return 
+        type_equal<BuiltinType>(t1, t2) ||
+        type_equal<FunctionType>(t1, t2) ||
+        type_equal<PtrType>(t1, t2);
 }
 
 }

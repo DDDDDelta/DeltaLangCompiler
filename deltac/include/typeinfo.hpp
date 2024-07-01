@@ -3,13 +3,16 @@
 #include "ownership.hpp"
 #include "utils.hpp"
 
+#include <iterator>
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <algorithm>
 #include <cassert>
-#include <set>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 
 namespace deltac {
 
@@ -113,7 +116,7 @@ public:
 
     bool can_be_vardecl_ty() const;
 
-    std::size_t size() const;
+    usize size() const;
 
     bool is_const() const;
 
@@ -145,13 +148,17 @@ public:
 
     bool is_bool_ty() const;
 
+    bool noqual_eq(const QualType& rhs) const;
+
+    bool eq(const QualType& rhs) const { return *this == rhs; }
+
     friend bool operator ==(const QualType& lhs, const QualType& rhs);
 
     friend class TypeBuilder;
 
 private:
-    qual::Qual qualification;
     Type* type;
+    qual::Qual qualification;
 };
 
 
@@ -188,7 +195,16 @@ public:
     Type* copy() const override { return new PtrType(type_under); }
 
     QualType& pointee() { return type_under; }
+
     const QualType& pointee() const { return type_under; }
+
+    bool eq(const PtrType* other) const { return *this == *other; }
+
+    bool noqual_eq(const PtrType* other) const { return type_under.noqual_eq(other->type_under); }
+
+    friend bool operator ==(const PtrType& lhs, const PtrType& rhs) {
+        return lhs.type_under == rhs.type_under;
+    }
 
 private:
     QualType type_under;
@@ -200,38 +216,42 @@ private:
  */
 class FunctionType : public Type {
 public:
-    FunctionType(llvm::ArrayRef<QualType> args_ty, QualType return_ty, util::use_copy_t = util::use_copy) : 
-        args_ty(args_ty), return_ty(std::move(return_ty)) {}
+    template <typename It>
+    FunctionType(It a_begin, It a_end, QualType return_ty, util::use_copy_t) : 
+        args_ty(a_begin, a_end), return_ty(std::move(return_ty)) {}
 
-    FunctionType(llvm::ArrayRef<QualType> args, QualType return_ty, util::use_move_t) :
+    template <typename It>
+    FunctionType(It a_begin, It a_end, QualType return_ty, util::use_move_t = util::use_move) :
         return_ty(std::move(return_ty)) {
-        for (auto&& arg : args) {
-            args_ty.emplace_back(std::move(arg));
+        for (; a_begin != a_end; std::advance(a_begin, 1)) {
+            args_ty.emplace_back(std::move(*a_begin));
         }
     }
 
     ~FunctionType() override = default;
 
     std::string repr() const override {
-        std::string ret = "fn (";
-        
-        for (auto&& ty : args_ty) {
-            ret += ty.repr() + ", ";
-        }
+        std::vector<std::string> names(args_ty.size(), "");
 
-        ret += ") -> " + return_ty.repr();
+        std::transform(args_ty.begin(), args_ty.end(), names.begin(), [](const QualType& t) {
+            return t.repr();
+        });
+
+        std::string ret = "fn (" + util::join(", ", names.begin(), names.end());
+
+        ret += ") " + return_ty.repr();
         return ret;
     }
 
     std::size_t size() const override { return 0; }
 
     Type* copy() const override {
-        llvm::SmallVector<QualType> new_args_ty;
-        for (auto ty : args_ty) {
-            new_args_ty.push_back(ty);
-        }
-        return new FunctionType(new_args_ty, return_ty);
+        return new FunctionType(args_ty.begin(), args_ty.end(), return_ty, util::use_copy);
     }
+
+    bool eq(const FunctionType* other) const { return *this == *other; }
+
+    friend bool operator ==(const FunctionType& lhs, const FunctionType& rhs); 
 
 private:
     llvm::SmallVector<QualType> args_ty;
@@ -266,6 +286,12 @@ public:
     // BuiltinType is guarenteed to be const since all public methods are const
     // We const_cast away the constness to keep the consistency with other Type objects
     Type* copy() const override { return const_cast<BuiltinType*>(this); }
+
+    bool eq(const BuiltinType* other) const { return this == other; }
+
+    friend bool operator ==(const BuiltinType& lhs, const BuiltinType& rhs) {
+        return &lhs == &rhs;
+    }
 
 private:
     Kind kind;

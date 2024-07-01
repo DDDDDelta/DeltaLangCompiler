@@ -68,13 +68,33 @@ enum class UnaryOp {
 std::optional<BinaryOp> to_binary_operator(tok::Kind type);
 
 inline bool is_binary_operator(const Token& tk) {
-    return to_binary_operator(tk.get_type()).has_value();
+    return (bool)to_binary_operator(tk.get_type());
 }
 
 std::optional<UnaryOp> to_unary_operator(tok::Kind type);
 
 inline bool is_unary_operator(const Token& tk) {
-    return to_unary_operator(tk.get_type()).has_value();
+    return (bool)to_unary_operator(tk.get_type());
+}
+
+enum class AssignOp {
+    Equal = 0,
+    PlusEqual,
+    MinusEqual,
+    TimesEqual,
+    DevideEqual,
+    ModEqual,
+    LeftShiftEqual,
+    RightShiftEqual,
+    OrEqual,
+    AndEqual,
+    XorEqual
+};
+
+std::optional<AssignOp> to_assignment_operator(tok::Kind type);
+
+inline bool is_assignment_operator(const Token& tok) {
+    return (bool)to_assignment_operator(tok.get_type());
 }
 
 }

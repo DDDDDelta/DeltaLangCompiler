@@ -1,4 +1,5 @@
 #include "operators.hpp"
+#include "tokentype.hpp"
 
 namespace deltac {
 
@@ -101,6 +102,49 @@ prec::Binary get_precedence(BinaryOp op) {
         return Multiply;
     default:
         DELTA_UNREACHABLE("logically unreachable");
+    }
+}
+
+std::optional<AssignOp> to_assignment_operator(tok::Kind type) {
+    using namespace tok;
+    
+    i32 ret = 0;
+
+    switch (type) {
+    case CaretEqual:
+        ret++;
+        [[fallthrough]];
+    case AmpEqual:
+        ret++;
+        [[fallthrough]];
+    case PipeEqual:
+        ret++;
+        [[fallthrough]];
+    case GreaterGreaterEqual:
+        ret++;
+        [[fallthrough]];
+    case LessLessEqual:
+        ret++;
+        [[fallthrough]];
+    case PercentEqual:
+        ret++;
+        [[fallthrough]];
+    case SlashEqual:
+        ret++;
+        [[fallthrough]];
+    case StarEqual:
+        ret++;
+        [[fallthrough]];
+    case MinusEqual:
+        ret++;
+        [[fallthrough]];
+    case PlusEqual:
+        ret++;
+        [[fallthrough]];
+    case Equal:
+        return (AssignOp)ret;
+    default:
+        return std::nullopt;
     }
 }
 

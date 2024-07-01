@@ -17,7 +17,7 @@ public:
     explicit IntLiteralParser(const Token& tok);
     IntLiteralParser(const Token& tok, std::uint8_t radix);
 
-    std::uint8_t get_radix() const { return radix; }
+    u8 get_radix() const { return radix; }
 
     /// get_apint_val - Convert this numeric literal value to an APInt that
     /// matches Val's input width.  If there is an overflow (i.e., if the unsigned
@@ -39,7 +39,7 @@ private:
     // there is no suffix
     const char* s; // cursor
 
-    std::uint8_t radix;
+    u8 radix;
 };
 
 }

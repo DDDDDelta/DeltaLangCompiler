@@ -1,6 +1,8 @@
 #include "parser.hpp"
 
 #include "literal_support.hpp"
+#include "operators.hpp"
+#include "tokentype.hpp"
 #include "utils.hpp"
 
 #include <string_view>
@@ -59,6 +61,21 @@ DeclResult Parser::declaration() {
  *     : Identifier ':' QualType
  *     ;
  */
+ParameterResult Parser::parameter() {
+    if (!curr_token.is(tok::Identifier)) {
+        return action_error;
+    }
+
+    std::string_view id = curr_token.get_view();
+
+    advance();
+
+    if (auto ty = type()) {
+        return ParameterResult(std::in_place, id, std::move(ty));
+    }
+    
+    return action_error;
+}
 
 /*
  * CompoundStmt
@@ -187,11 +204,11 @@ Stmt* Parser::statement() {
 */
 /*
  * Expr
- *     : PostfixExpr
+ *     : AssignmentExpr
  *     ;
  */
 ExprResult Parser::expression() {
-    return binary_expression();
+    return assignment_expression();
 }
 
 /*
@@ -240,7 +257,7 @@ ExprResult Parser::primary_expression() {
 }
 
 ExprResult Parser::integer_literal_expression() {
-    std::uint8_t posix = 10;
+    u8 posix = 10;
     switch (curr_token.get_type()) {
         using namespace tok; 
     case HexIntLiteral: {
@@ -284,7 +301,7 @@ ExprResult Parser::postfix_expression() {
             llvm::SmallVector<Expr*> args;
             bool is_valid = parse_list_of(
                 std::back_inserter(args), 
-                std::bind(&Parser::expression, this),
+                bind_this(&Parser::expression),
                 tok::LeftParen,
                 tok::RightParen
             );
@@ -395,6 +412,33 @@ ExprResult Parser::recursive_parse_binary_expression(prec::Binary min_precedence
             break;
         }
         // lhs = new BinaryExpr(QualType(), Expr::Unclassified, lhs, opt_op.value(), rhs);
+    }
+
+    return lhs;
+}
+
+/*
+ * AssignmentExpr
+ *     : BinaryExpr
+ *     : Binary AssignmentOperator AssignmentExpr
+ *     ;
+ */
+ExprResult Parser::assignment_expression() {
+    ExprResult lhs = binary_expression();
+
+    if (!lhs) {
+        return action_error;
+    }
+
+    if (auto op = to_assignment_operator(curr_token.get_type())) {
+        if (auto ae = assignment_expression()) {
+            return action.act_on_assignment_expr(*lhs, *op, *ae);
+        }
+        else {
+            lhs.deletep();
+            // TODO: diag invalid expr
+            return action_error;
+        }
     }
 
     return lhs;
