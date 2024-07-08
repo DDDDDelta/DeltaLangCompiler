@@ -331,13 +331,10 @@ ExprResult Parser::unary_expression() {
     if (auto op = to_unary_operator(curr_token.get_type())) {
         advance();
 
-        if (auto expr = unary_expression()) {
-            // act on expr
-            return action.act_on_unary_expr(*op, *expr);
-        }
-        else {
-            return action_error;
-        }
+        auto expr = unary_expression();
+        return_if_not(expr);
+
+        return action.act_on_unary_expr(*op, *expr);
     }
     else {
         return postfix_expression();
@@ -352,8 +349,7 @@ ExprResult Parser::unary_expression() {
  */
 ExprResult Parser::cast_expression() {
     auto expr = unary_expression();
-    if (!expr)
-        return action_error;
+    return_if_not(expr);
 
     while (curr_token.is(tok::To)) {
         advance();
@@ -379,9 +375,7 @@ ExprResult Parser::binary_expression() {
 
 ExprResult Parser::recursive_parse_binary_expression(prec::Binary min_precedence) {
     ExprResult lhs = cast_expression();
-    if (!lhs) {
-        return action_error;
-    }
+    return_if_not(lhs);
 
     while (true) {
         auto opt_op = to_binary_operator(curr_token.get_type()); // not a binary operator, binary expression ends
@@ -425,10 +419,7 @@ ExprResult Parser::recursive_parse_binary_expression(prec::Binary min_precedence
  */
 ExprResult Parser::assignment_expression() {
     ExprResult lhs = binary_expression();
-
-    if (!lhs) {
-        return action_error;
-    }
+    return_if_not(lhs);
 
     if (auto op = to_assignment_operator(curr_token.get_type())) {
         if (auto ae = assignment_expression()) {

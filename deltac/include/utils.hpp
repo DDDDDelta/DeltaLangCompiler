@@ -12,6 +12,16 @@
 #define DELTA_ASSERT(EXPR) assert(EXPR)
 #define DELTA_ASSERT_MSG(EXPR, MSG) (DELTA_ASSERT(EXPR && MSG))
 
+#define switch_no_default(...) \
+    switch (__VA_ARGS__) \
+    default: \
+        if (true) \
+            DELTA_UNREACHABLE("unreachable default case"); \
+        else
+
+#define return_if_not(EXPR) if (!(EXPR)) return EXPR
+#define return_if(EXPR) if (EXPR) return EXPR
+
 namespace deltac::util {
 
 template <class T>
@@ -97,6 +107,7 @@ using i64 = std::int64_t;
 using u64 = std::uint64_t;
 using i128 = __int128;
 using u128 = unsigned __int128;
+using isize = std::ptrdiff_t;
 using usize = std::size_t;
 
 }
