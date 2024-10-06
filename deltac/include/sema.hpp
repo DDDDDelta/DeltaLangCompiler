@@ -15,6 +15,7 @@ public:
     bool add_ptr(bool constness = false);
     // bool add_array(Expr* size);
     // bool add_array_ref(bool constness = false);
+
     bool finalize(const Token& tok, bool constness = false);
     
     bool finalize(llvm::ArrayRef<QualType> param_ty, QualType ret_ty, util::use_move_t = util::use_move);
@@ -43,9 +44,10 @@ public:
     
     const ASTContext& ast_context() const { return context; }
 
-    ExprResult act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty);
+    ExprResult act_on_int_literal(const Token& tok, u8 posix, QualType* ty);
     ExprResult act_on_unary_expr(UnaryOp, Expr* expr);
-    ExprResult act_on_cast_expr(Expr* expr, QualType ty);
+
+    RawTypeResult act_on_raw_type(const Token& tok);
 
 private:
     Expr* add_integer_promotion(Expr* expr);

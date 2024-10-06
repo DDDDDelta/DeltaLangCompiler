@@ -265,8 +265,6 @@ private:
     AssignOp op;
 };
 
-using ExprResult = ActionResult<Expr*>;
-
 }
 
 /*

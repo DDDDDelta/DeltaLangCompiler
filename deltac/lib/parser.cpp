@@ -9,56 +9,44 @@
 
 namespace deltac {
 
-Parser::Parser(const SourceBuffer& src, Sema& s) : lexer(src), action(s) {
+Parser::Parser(Lexer& lexer, Sema& s) : lexer(lexer), action(s) {
     lexer.lex(curr_token); // must at least have an EOF token
     
     if (curr_token.is(tok::EndOfFile))
-        void();// TODO: warm empty file
+        void();// TODO: diag empty file
 }
 
 /*
  * Program
- *     : Decl*
+ *     : TopLevelDeclaration
+ *     | Program TopLevelDeclaration
+ *     ;
+ * 
+ * TopLevelDeclaration
+ *     : Declaration
  *     ;
  */
-bool Parser::parse() {
-    assert(!curr_token.is(tok::ERROR));
-
+bool Parser::parse_top_level_decl(Decl*& res) {
     if (curr_token.is(tok::EndOfFile)) {
-        // diag empty file
         return false;
     }
 
-    Decl* new_decl = declaration();
-    if (new_decl != nullptr) {
-        decl.reset(new_decl);
+    auto declres = declaration();
+
+    if (declres) {
+        res = *declres;
         return true;
-    } else {
-        return false;
-    }
-}
-
-DeclResult Parser::declaration() {
-    if (curr_token.is(tok::Let)) {
-        return variable_declaration();
-    } 
-    else if (curr_token.is(tok::Fn)) {
-        return nullptr;
     }
     else {
-        return nullptr;
+        return false;
     }
 }
 
 
 
 /*
- * ParameterList
- *     : '(' (Parameter (',' Parameter)*)? ')'
- *     ;
- * 
- * Parameter
- *     : Identifier ':' QualType
+ * ParameterDeclaration
+ *     : Identifier TypeSpecifier
  *     ;
  */
 ParameterResult Parser::parameter() {
@@ -83,7 +71,8 @@ ParameterResult Parser::parameter() {
  *     ;
  * 
  * StmtList
- *     : Stmt*
+ *     : Stmt
+ *     : StmtList Stmt
  *     ;
  */
 /*
@@ -120,16 +109,22 @@ ExprStmt* Parser::expression_statement() {
 */
 
 /*
- * Type
- *     : Identifier
- *     | '*' Type
+ * TypeSpecifier
+ *     : 'void'
+ *     | Typename 'const'[opt]
+ *     | '*' 'const'[opt] Type
  *     ;
  */
 TypeResult Parser::type() {
     TypeBuilder builder(action);
 
     while (true) {
-        if (curr_token.is(tok::Identifier)) {
+        if (curr_token.is(tok::Void)) {
+            advance();
+
+            return (QualType)action.ast_context().get_void_ty();
+        }
+        else if (curr_token.is(tok::Identifier)) {
             Token t = curr_token;
 
             advance();
@@ -157,8 +152,21 @@ TypeResult Parser::type() {
 }
 
 /*
+ * Typename
+ *     : Identifier
+ *     ;
+ */
+RawTypeResult Parser::raw_type() {
+    if (!curr_token.is(tok::Identifier)) {
+        return action_error;
+    }
+
+    return ;
+}
+
+/*
  * ReturnStmt
- *     : 'return' Expr[opt] ';'
+ *     : 'return' Expression[opt] ';'
  */
 /*
 ReturnStmt* Parser::return_statement() {
@@ -178,11 +186,10 @@ ReturnStmt* Parser::return_statement() {
 
 /*
  * Stmt
- *     : CompoundStmt
- *     | LetDefStmt
- *     | FuncDefStmt
- *     | ExprStmt
- *     | ReturnStmt
+ *     : CompoundStatement
+ *     | DeclarationStatement
+ *     | ExprStatement
+ *     | ReturnStatement
  *     ;
  */
 /*
@@ -218,12 +225,12 @@ ExprResult Parser::expression() {
  *     | LiteralExpr
  *     ;
  * 
- * IdExpr
+ * IdExpression
  *     : Identifier
  *     ;
  * 
- * ParenExpr
- *     : '(' Expr ')'
+ * ParenExpression
+ *     : '(' Expression ')'
  *     ;
  * 
  */
@@ -240,9 +247,7 @@ ExprResult Parser::primary_expression() {
         advance();
 
         ExprResult expr = expression();
-        if (!expr) {
-            return action_error;
-        }
+        return_if_not(expr);
 
         if (!advance_expected(tok::RightParen)) {
             expr.deletep();
@@ -266,15 +271,6 @@ ExprResult Parser::integer_literal_expression() {
     case DecIntLiteral:
         advance();
 
-        if (curr_token.is(As)) {
-            advance();
-            if (auto ty = type()) {
-                return action.act_on_int_literal(curr_token, posix, &*ty);
-            } else {
-                return action_error;
-            }
-        }
-
         return action.act_on_int_literal(curr_token, posix, nullptr);
     }
     default:
@@ -285,15 +281,11 @@ ExprResult Parser::integer_literal_expression() {
 /* PostfixExpression:
  *     : PrimaryExpression
  *     | PostFixExpression '(' ExpressionList[opt] ')'   (CallExpression)
- *     | PostFixExpression '[' Expression ']'       (IndexExpression) // TODO: implement this
  *     ;
  */
 ExprResult Parser::postfix_expression() {
     ExprResult expr = primary_expression();
-
-    if (!expr) {
-        return action_error;
-    }
+    return_if_not(expr);
 
     // CallExpression or IndexExpression
     while (true) {
@@ -341,40 +333,13 @@ ExprResult Parser::unary_expression() {
     }
 }
 
-/*
- * CastExpression
- *     : UnaryExpression
- *     | CastExpression 'as' Typename
- *     ;
- */
-ExprResult Parser::cast_expression() {
-    auto expr = unary_expression();
-    return_if_not(expr);
-
-    while (curr_token.is(tok::To)) {
-        advance();
-
-        if (auto opt_ty = type()) {
-            action.act_on_cast_expr(*expr, *opt_ty);
-        }
-        else {
-            // error invalid type
-            expr.deletep();
-            return action_error;
-        }
-    }
-
-    // act on expr
-
-    return expr;
-}
-
+// parsed according to precedence
 ExprResult Parser::binary_expression() {
     return recursive_parse_binary_expression(prec::Unknown);
 }
 
 ExprResult Parser::recursive_parse_binary_expression(prec::Binary min_precedence) {
-    ExprResult lhs = cast_expression();
+    ExprResult lhs = unary_expression();
     return_if_not(lhs);
 
     while (true) {
@@ -405,7 +370,6 @@ ExprResult Parser::recursive_parse_binary_expression(prec::Binary min_precedence
             // TODO: diag
             break;
         }
-        // lhs = new BinaryExpr(QualType(), Expr::Unclassified, lhs, opt_op.value(), rhs);
     }
 
     return lhs;
@@ -414,7 +378,7 @@ ExprResult Parser::recursive_parse_binary_expression(prec::Binary min_precedence
 /*
  * AssignmentExpr
  *     : BinaryExpr
- *     : Binary AssignmentOperator AssignmentExpr
+ *     : BinaryExpr AssignmentOperator AssignmentExpr
  *     ;
  */
 ExprResult Parser::assignment_expression() {

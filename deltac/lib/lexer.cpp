@@ -7,8 +7,8 @@ const KeywordTrie Lexer::kwtrie = {
 #include "tokentype.inc"
 };
 
-Lexer::Lexer(const SourceBuffer& source) : 
-    buffer_start(source.ptr_cbegin()), buffer_end(source.ptr_cend()), buffer_curr(buffer_start) {}
+Lexer::Lexer(const char* begin, const char* end) : 
+    buffer_start(begin), buffer_end(end), buffer_curr(buffer_start) {}
 
 void Lexer::form_token(Token& result, const char* token_end, tok::Kind type) {
     result.set_type(type);

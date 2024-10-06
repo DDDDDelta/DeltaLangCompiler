@@ -14,7 +14,7 @@ namespace deltac {
 
 class Lexer {
 public:
-    explicit Lexer(const SourceBuffer& source);
+    explicit Lexer(const char* begin, const char* end);
     
     bool lex(Token& result);
     

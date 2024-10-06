@@ -1,6 +1,7 @@
 #pragma once
 
 #include "declaration.hpp"
+#include "utils.hpp"
 
 #include <vector>
 
@@ -19,7 +20,7 @@ public:
     }
 
     bool found() const {
-        return decl == nullptr;
+        return decl != nullptr;
     }
 
     bool is_variable() const {
@@ -40,7 +41,7 @@ private:
 
 class ASTContext {
 public:
-    ASTContext() = default;
+    ASTContext();
     ASTContext(const ASTContext&) = delete;
     ASTContext(ASTContext&&) = delete;
 
@@ -48,20 +49,21 @@ public:
         util::cleanup_ptrs(global_vardecls.begin(), global_vardecls.end());
     }
 
-    void register_global_vardecl(VarDecl* vardecl) {
-        assert(vardecl != nullptr);
+    void register_toplevel_decl(Decl* decl) {
+        assert(decl != nullptr);
         
-        if (vardecl->has_body()) {
-            vardecl->reset_expr();
+        if (auto* d = dynamic_cast<VarDecl*>(decl)) {
+            top_level_vardecls.push_back(d);
         }
-
-        global_vardecls.push_back(vardecl);
+        else if (auto* d = dynamic_cast<FuncDecl*>(decl)) {
+            top_level_vardecls.push_back(d);
+        }
     }
 
     LookupResult lookup_decl_with_id(std::string_view id) const {
         assert(!id.empty());
 
-        for (VarDecl* vardecl : global_vardecls) {
+        for (VarDecl* vardecl : top_level_vardecls) {
             if (vardecl->get_identifier() == id) {
                 return vardecl;
             }
@@ -71,30 +73,37 @@ public:
     }
 
 public:
-    Type* get_i32_ty() const;
-    Type* get_int_ty_size(u32 bitwidth, bool is_signed) const;
-    Type* get_bool_ty() const;
-    Type* get_void_ty() const;
-    Type* get_void_ptr_ty() const;
+    BuiltinType* get_i32_ty() const;
+    BuiltinType* get_int_ty_size(u32 bitwidth, bool is_signed) const;
+    BuiltinType* get_bool_ty() const;
+    BuiltinType* get_void_ty() const;
+    BuiltinType* get_void_ptr_ty() const;
 
-    Type* get_uint_ty(u32 bitwidth) const {
+    BuiltinType* get_uint_ty(u32 bitwidth) const {
         return get_int_ty_size(bitwidth, false);
     }
 
-    Type* get_int_ty(u32 bitwidth) const {
+    BuiltinType* get_int_ty(u32 bitwidth) const {
         return get_int_ty_size(bitwidth, true);
     }
 
-private:
-    static BuiltinType builtin_types[];
-
-    static BuiltinType* get_builtin_type(BuiltinType::Kind kind) {
-        return &builtin_types[kind];
+    BuiltinType* get_builtin_type(BuiltinType::Kind kind) const {
+        // BuiltinType is always const
+        return const_cast<BuiltinType*>(&builtin_types[kind]);
     }
 
 private:
-    std::vector<VarDecl*> global_vardecls;
-    std::vector<FuncDecl*> global_funcdecls;
+    std::vector<BuiltinType> builtin_types;
+    std::vector<VarDecl*> top_level_vardecls;
+    std::vector<FuncDecl*> top_level_funcdecls;
 };
+
+BuiltinType* ASTContext::get_i32_ty() const {
+    return get_builtin_type(BuiltinType::I32);
+}
+
+BuiltinType* ASTContext::get_bool_ty() const {
+    return get_builtin_type(BuiltinType::Bool);
+}
 
 } // namespace deltac

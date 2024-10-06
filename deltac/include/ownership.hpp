@@ -10,6 +10,13 @@ namespace deltac {
 
 inline constexpr class action_error_t {} action_error;
 
+class ActionErrorAccess : public std::exception {
+public:
+    const char* what() const override {
+        return "action_error accessed";
+    }
+};
+
 namespace _impl {
 
 template <typename T>
@@ -172,26 +179,43 @@ private:
     Value& get() { return this->val; }
 
 public:
-    Value& operator *() & { return get(); }
+    Value& operator *() & { 
+        if (is_usable()) { 
+            return get(); 
+        }
+        else {
+            throw ActionErrorAccess();
+        }
+    }
 
-    const Value& operator *() const& { return get(); }
+    const Value& operator *() const& { 
+        if (is_usable()) { 
+            return get();
+        }
+        else {
+            throw ActionErrorAccess();
+        }
+    }
 
-    Value&& operator *() && { return std::move(get()); }
+    Value&& operator *() && { 
+        if (is_usable()) { 
+            return std::move(get());
+        }
+        else {
+            throw ActionErrorAccess();
+        }
+    }
 
-    const Value&& operator *() const&& { return std::move(get()); }
+    const Value&& operator *() const&& { 
+        if (is_usable()) { 
+            return std::move(get());
+        }
+        else {
+            throw ActionErrorAccess();
+        }
+    }
 
     using Base::reset;
-
-    bool reset(Value& val) { 
-        if (is_usable()) {
-            return false;
-        }
-
-        val = std::move(this->val);
-        reset();
-
-        return true;
-    }
 
     bool is_usable() const { return this->is_valid; }
 
@@ -272,6 +296,20 @@ public:
 private:
     Value ptr;
 };
+
+class Decl;
+class Parameter;
+class QualType;
+class Type;
+class Expr;
+class Stmt;
+
+using DeclResult = ActionResult<Decl*>;
+using ParameterResult = ActionResult<Parameter>;
+using TypeResult = ActionResult<QualType>;
+using RawTypeResult = ActionResult<Type*>;
+using ExprResult = ActionResult<Expr*>;
+using StmtResult = ActionResult<Stmt*>;
 
 template <typename T, typename D>
 class GuardRAII {

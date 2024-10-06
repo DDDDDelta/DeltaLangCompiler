@@ -307,6 +307,4 @@ bool is_unsigned(BuiltinType::Kind kind);
 
 bool is_integer(BuiltinType::Kind kind);
 
-using TypeResult = ActionResult<QualType>;
-
 }

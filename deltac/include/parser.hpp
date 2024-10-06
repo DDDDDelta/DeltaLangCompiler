@@ -2,6 +2,7 @@
 
 #include "declaration.hpp"
 #include "expression.hpp"
+#include "ownership.hpp"
 #include "statement.hpp"
 #include "filebuffer.hpp"
 #include "token.hpp"
@@ -18,28 +19,25 @@ namespace deltac {
 
 class Parser {
 public:
-    Parser(const SourceBuffer& src, Sema& s);
+    Parser(Lexer& lexer, Sema& s);
 
     Parser(const Parser&) = delete;
     Parser(Parser&&) = delete;
 
-    bool parse();
-
-    Decl* release_decl() {
-        return decl.release();
-    }
+    bool parse_top_level_decl(Decl*& res);
 
 private:
     TypeResult type();
+    RawTypeResult raw_type();
 
     DeclResult declaration();
     DeclResult variable_declaration();
-
+    
     ParameterResult parameter();
 
-    template <typename Container, typename Fn>
+    template <typename It, typename Fn>
     bool parse_list_of(
-        std::back_insert_iterator<Container> out, 
+        It out, 
         Fn&& fn, 
         tok::Kind start, 
         tok::Kind end,
@@ -58,13 +56,14 @@ private:
         }
 
         while (!curr_token.is(end)) {
+            // parse the element
             auto res = std::invoke(fn);
 
             if (!res) {
                 return false;
             }
 
-            *out = *res;
+            *out++ = *res;
 
             if (curr_token.is(delimiter)) {
                 advance();
@@ -96,28 +95,24 @@ private:
     ExprResult integer_literal_expression();
     ExprResult postfix_expression();
     ExprResult unary_expression();
-    ExprResult cast_expression();
     ExprResult binary_expression();
     ExprResult recursive_parse_binary_expression(prec::Binary);
     ExprResult assignment_expression();
 
-    // TypeInfo type_info();
     bool advance_expected(tok::Kind type);
     bool try_advance(tok::Kind type);
     void advance();
 
-    template <typename Fn>
-    auto bind_this(Fn&& fn) {
-        return std::bind(fn, this);
+    template <typename Fn, typename... Args>
+    auto bind_this(Fn&& fn, Args... args) {
+        return std::bind(fn, this, args...);
     }
 
 private:
-    Lexer lexer;
+    Lexer& lexer;
     Sema& action;
 
     Token curr_token;
-
-    std::unique_ptr<Decl> decl;
 };
 
 } // namespace deltac

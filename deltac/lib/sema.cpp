@@ -3,6 +3,7 @@
 #include "expression.hpp"
 #include "literal_support.hpp"
 #include "operators.hpp"
+#include "tokentype.hpp"
 #include "utils.hpp"
 
 namespace deltac {
@@ -16,12 +17,16 @@ bool TypeBuilder::add_ptr(bool constness) {
     return true;
 }
 
-bool TypeBuilder::finalize(const Token& tok, bool constness) {
+bool TypeBuilder::finalize(const Token& token, bool constness) {
     DELTA_ASSERT(!errored);
 
     finalized = true;
 
-    Type* ty = action.new_type_from_tok(tok);
+    if (token.is(tok::Void)) {
+        base->raw_type(action.context.get_void_ty());
+    }
+
+    Type* ty = action.new_type_from_tok(token);
 
     if (!ty) {
         errored = true;
@@ -95,7 +100,7 @@ static Expr* new_noop_cast(Expr* expr) {
     return new ExplicitCastExpr(expr, expr->type(), CastExpr::NoOp);
 }
 
-ExprResult Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualType* ty) {
+ExprResult Sema::act_on_int_literal(const Token& tok, u8 posix, QualType* ty) {
     if (ty != nullptr && !ty->is_integer_ty()) {
         // error incompatible specified type for int literal
         return action_error;
@@ -106,7 +111,7 @@ ExprResult Sema::act_on_int_literal(const Token& tok, std::uint8_t posix, QualTy
 
     if (ty) {
         is_unsigned = ty->is_signed_ty();
-        bitwidth = (std::uint32_t)ty->size();
+        bitwidth = (u32)ty->size();
     }
 
     IntLiteralParser literal_parser(tok, posix);
@@ -188,7 +193,7 @@ ExprResult Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
         return new UnaryExpr(QualType::make_remove_ptr_ty(expr->type()), Expr::LValue, op, expr);
 
     case UnaryOp::AddressOf:
-        if (!expr->is_lval()) {
+        if (expr->is_lval()) {
             // TODO: error cannot take address of rvalue
             return action_error;
         }
@@ -197,34 +202,16 @@ ExprResult Sema::act_on_unary_expr(UnaryOp op, Expr* expr) {
     }
 }
 
-ExprResult Sema::act_on_cast_expr(Expr* expr, QualType ty) {
-    expr = new_lval_cast(expr);
+RawTypeResult Sema::act_on_raw_type(const Token& id_token) {
+    DELTA_ASSERT(id_token.is(tok::Identifier));
 
-    // if the expr is a pointer and is being casted to a pointer
-    // it is a reinterpret cast    
-    if (ty.is_ptr_ty() && expr->type().is_ptr_ty()) { 
-        return new ExplicitCastExpr(expr, ty, CastExpr::BitCast);
-    }
 
-    // from pointer to a u64 is also a reinterpret cast
-    if (ty.is_ptr_ty() && expr->type().raw_type() == context.get_uint_ty(64u)) {
-        return new ExplicitCastExpr(expr, ty, CastExpr::BitCast);
-    }
 }
 
 Expr* Sema::add_integer_promotion(Expr* expr) {
     DELTA_ASSERT(expr->is_rval());
 
     return new ImplicitCastExpr(expr, context.get_i32_ty(), CastExpr::IntCast);
-}
-
-Type* Sema::new_type_from_tok(const Token& tok) {
-    return nullptr;
-}
-
-Type* Sema::new_function_ty(llvm::ArrayRef<QualType> param_ty, QualType ret_ty) {
-    // TODO: check function type
-    return new FunctionType(param_ty, std::move(ret_ty), util::use_move);
 }
 
 } // namespace deltac

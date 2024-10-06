@@ -80,12 +80,8 @@ struct Parameter {
     QualType type;
 };
 
-using ParameterResult = ActionResult<Parameter>;
-
 class FuncDecl;
 
 class TypeDecl;
-
-using DeclResult = ActionResult<Decl*>;
 
 } // namespace deltac
